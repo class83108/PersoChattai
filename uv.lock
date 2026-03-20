@@ -1576,6 +1576,25 @@ wheels = [
 ]
 
 [[package]]
+name = "openai"
+version = "2.29.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "distro" },
+    { name = "httpx" },
+    { name = "jiter" },
+    { name = "pydantic" },
+    { name = "sniffio" },
+    { name = "tqdm" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b4/15/203d537e58986b5673e7f232453a2a2f110f22757b15921cbdeea392e520/openai-2.29.0.tar.gz", hash = "sha256:32d09eb2f661b38d3edd7d7e1a2943d1633f572596febe64c0cd370c86d52bec", size = 671128, upload-time = "2026-03-17T17:53:49.599Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d0/b1/35b6f9c8cf9318e3dbb7146cc82dab4cf61182a8d5406fc9b50864362895/openai-2.29.0-py3-none-any.whl", hash = "sha256:b7c5de513c3286d17c5e29b92c4c98ceaf0d775244ac8159aeb1bddf840eb42a", size = 1141533, upload-time = "2026-03-17T17:53:47.348Z" },
+]
+
+[[package]]
 name = "orjson"
 version = "3.11.7"
 source = { registry = "https://pypi.org/simple" }
@@ -1709,7 +1728,7 @@ wheels = [
 [[package]]
 name = "persochattai"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "apscheduler" },
     { name = "asyncpg" },
@@ -1721,6 +1740,7 @@ dependencies = [
     { name = "httpx" },
     { name = "jinja2" },
     { name = "lexical-diversity" },
+    { name = "openai" },
     { name = "python-dotenv" },
     { name = "spacy" },
     { name = "uvicorn", extra = ["standard"] },
@@ -1749,6 +1769,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "lexical-diversity", specifier = ">=0.1.1" },
+    { name = "openai", specifier = ">=2.29.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "spacy", specifier = ">=3.8.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.40.0" },

@@ -1,0 +1,25 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Python 3.12, FastAPI, HTMX, FastRTC, BYOA Core (Agent framework)
+  LLM: Claude API (via BYOA) for thinking, Gemini Live API for voice conversation
+  DB: PostgreSQL (VPS self-hosted), asyncpg
+  Frontend: HTMX + vanilla JS, PWA
+  Testing: pytest-bdd + Gherkin (繁體中文)
+  Quality: ruff, pyright, pytest
+  Agent framework: BYOA Core (Protocol-based, Tools/Skills system)
+  Domain: AI-powered English learning PWA with Role Play, Podcast summarization, ability tracking
+  Commit messages: 繁體中文
+  Design doc: design-doc.md (北極星文檔)
+
+rules:
+  proposal:
+    - 參考 design-doc.md 的北極星文檔確保一致性
+    - 明確標示與其他 spec 的依賴關係
+  design:
+    - 遵循 BYOA Core 的 Protocol-based 設計
+    - 資料傳遞使用 Pydantic model
+    - Function cyclomatic complexity <= 10
+  tasks:
+    - 每個 task 對應一個可測試的功能單元
+    - 遵循 TDD 流程：先 .feature → 再實作
