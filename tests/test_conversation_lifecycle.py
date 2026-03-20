@@ -252,7 +252,12 @@ def gemini_disconnects(manager: Any, ctx: dict[str, Any]) -> None:
 
 @when(parsers.parse('對話持續達 {minutes:d} 分鐘'))
 def conversation_reaches_minutes(minutes: int, manager: Any, ctx: dict[str, Any]) -> None:
-    _run(manager.simulate_time_elapsed(ctx['conversation_id'], minutes * 60))
+    conv_id = ctx['conversation_id']
+    seconds = minutes * 60
+    if seconds >= 13 * 60:
+        _run(manager._on_time_limit_warning(conv_id))
+    if seconds >= 15 * 60:
+        _run(manager._on_time_limit_reached(conv_id))
 
 
 @when('超過 2 分鐘未收到使用者音訊')
