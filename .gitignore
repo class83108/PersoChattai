@@ -27,3 +27,6 @@ coverage.xml
 
 # pytest
 .pytest_cache/
+
+# Claude Code
+.claude/settings.local.json
