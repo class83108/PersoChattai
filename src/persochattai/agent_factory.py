@@ -21,7 +21,7 @@ from persochattai.tools import (
     build_conversation_tool_registry,
 )
 from persochattai.usage.monitor import ExtendedUsageMonitor
-from persochattai.usage.schemas import UsageRepositoryProtocol
+from persochattai.usage.schemas import ModelConfigRepositoryProtocol, UsageRepositoryProtocol
 
 _provider: AnthropicProvider | None = None
 _usage_monitor: ExtendedUsageMonitor | None = None
@@ -38,9 +38,15 @@ def _get_provider(settings: Settings) -> AnthropicProvider:
     return _provider
 
 
-def init_usage_monitor(repository: UsageRepositoryProtocol | None = None) -> ExtendedUsageMonitor:
+def init_usage_monitor(
+    repository: UsageRepositoryProtocol | None = None,
+    model_config_repo: ModelConfigRepositoryProtocol | None = None,
+) -> ExtendedUsageMonitor:
     global _usage_monitor
-    _usage_monitor = ExtendedUsageMonitor(repository=repository)
+    _usage_monitor = ExtendedUsageMonitor(
+        repository=repository,
+        model_config_repo=model_config_repo,
+    )
     return _usage_monitor
 
 

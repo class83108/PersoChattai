@@ -8,8 +8,8 @@ from fastrtc import Stream
 from persochattai.conversation.gemini_handler import GeminiHandler
 
 
-def create_conversation_stream() -> tuple[FastAPI, Stream]:
-    handler = GeminiHandler()
+def create_conversation_stream(*, model: str = 'gemini-2.0-flash') -> tuple[FastAPI, Stream]:
+    handler = GeminiHandler(model=model)
     stream = Stream(
         handler=handler,
         modality='audio',
@@ -20,8 +20,8 @@ def create_conversation_stream() -> tuple[FastAPI, Stream]:
     return app, stream
 
 
-def mount_conversation_stream(app: FastAPI) -> Stream:
-    handler = GeminiHandler()
+def mount_conversation_stream(app: FastAPI, *, model: str = 'gemini-2.0-flash') -> Stream:
+    handler = GeminiHandler(model=model)
     stream = Stream(
         handler=handler,
         modality='audio',

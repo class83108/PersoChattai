@@ -200,19 +200,13 @@ def when_calculate_cost(active_monitor: Any) -> float:
     return summary['gemini_audio']['cost_usd']
 
 
-@then(parsers.parse('成本等於 {sec:d} 乘以 gemini-2.0-flash 的 input_per_second'))
-def then_cost_known_model(gemini_cost: float, sec: int) -> None:
-    from persochattai.usage.schemas import GEMINI_AUDIO_PRICING
+@then(parsers.parse('成本等於 {sec:d} 秒的 token-based fallback 定價'))
+def then_cost_fallback(gemini_cost: float, sec: int) -> None:
+    from persochattai.usage.schemas import FALLBACK_GEMINI_PRICING
 
-    expected = sec * GEMINI_AUDIO_PRICING['gemini-2.0-flash']['input_per_second']
-    assert gemini_cost == pytest.approx(expected)
-
-
-@then(parsers.parse('成本等於 {sec:d} 乘以預設 input_per_second'))
-def then_cost_default(gemini_cost: float, sec: int) -> None:
-    from persochattai.usage.schemas import DEFAULT_GEMINI_AUDIO_PRICING
-
-    expected = sec * DEFAULT_GEMINI_AUDIO_PRICING['input_per_second']
+    tokens_per_sec = FALLBACK_GEMINI_PRICING['tokens_per_sec']
+    audio_input = FALLBACK_GEMINI_PRICING['audio_input']
+    expected = sec * tokens_per_sec * audio_input / 1_000_000
     assert gemini_cost == pytest.approx(expected)
 
 
