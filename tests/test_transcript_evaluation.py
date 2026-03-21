@@ -11,6 +11,7 @@ import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
 from persochattai.assessment.service import AssessmentService
+from tests.helpers import MockStreamAgent
 
 scenarios('features/transcript_evaluation.feature')
 
@@ -46,20 +47,19 @@ def mock_snapshot_repo() -> AsyncMock:
     return repo
 
 
+_DEFAULT_AGENT_RESULT = {
+    'cefr_level': 'B1',
+    'lexical_assessment': 'Good vocabulary range.',
+    'fluency_assessment': 'Speaks with reasonable fluency.',
+    'grammar_assessment': 'Generally accurate grammar.',
+    'suggestions': ['Try using more complex sentences.', 'Expand vocabulary.'],
+    'new_words': ['pragmatic', 'nuanced'],
+}
+
+
 @pytest.fixture
-def mock_agent() -> AsyncMock:
-    agent = AsyncMock()
-    agent.run = AsyncMock(
-        return_value={
-            'cefr_level': 'B1',
-            'lexical_assessment': 'Good vocabulary range.',
-            'fluency_assessment': 'Speaks with reasonable fluency.',
-            'grammar_assessment': 'Generally accurate grammar.',
-            'suggestions': ['Try using more complex sentences.', 'Expand vocabulary.'],
-            'new_words': ['pragmatic', 'nuanced'],
-        }
-    )
-    return agent
+def mock_agent() -> MockStreamAgent:
+    return MockStreamAgent(return_value=dict(_DEFAULT_AGENT_RESULT))
 
 
 @pytest.fixture
@@ -67,7 +67,7 @@ def service(
     mock_assessment_repo: AsyncMock,
     mock_vocabulary_repo: AsyncMock,
     mock_snapshot_repo: AsyncMock,
-    mock_agent: AsyncMock,
+    mock_agent: MockStreamAgent,
 ) -> AssessmentService:
     return AssessmentService(
         assessment_repo=mock_assessment_repo,
@@ -121,51 +121,46 @@ def short_transcript(ctx: dict[str, Any]) -> None:
 
 
 @given('模擬 Claude Agent 回傳有效的評估結果')
-def mock_valid_agent(mock_agent: AsyncMock) -> None:
+def mock_valid_agent(mock_agent: MockStreamAgent) -> None:
     pass  # default mock already returns valid result
 
 
 @given(parsers.parse('模擬 Claude Agent 回傳 cefr_level "{level}"'))
-def mock_agent_cefr(level: str, mock_agent: AsyncMock) -> None:
-    result = mock_agent.run.return_value
-    result['cefr_level'] = level
+def mock_agent_cefr(level: str, mock_agent: MockStreamAgent) -> None:
+    mock_agent.return_value['cefr_level'] = level
 
 
 @given('模擬 Claude Agent 拋出例外')
-def mock_agent_error(mock_agent: AsyncMock) -> None:
-    mock_agent.run = AsyncMock(side_effect=Exception('Claude API failed'))
+def mock_agent_error(mock_agent: MockStreamAgent) -> None:
+    mock_agent.side_effect = Exception('Claude API failed')
 
 
 @given('模擬 Claude Agent 回傳無法解析的格式')
-def mock_agent_bad_format(mock_agent: AsyncMock) -> None:
-    mock_agent.run = AsyncMock(return_value='not a valid json response')
+def mock_agent_bad_format(mock_agent: MockStreamAgent) -> None:
+    mock_agent.return_value = 'not a valid json response'
 
 
 @given(parsers.parse('模擬 Claude Agent 回傳 new_words {words}'))
-def mock_agent_new_words(words: str, mock_agent: AsyncMock) -> None:
+def mock_agent_new_words(words: str, mock_agent: MockStreamAgent) -> None:
     import json
 
     parsed = json.loads(words)
-    result = mock_agent.run.return_value
-    if isinstance(result, dict):
-        result['new_words'] = parsed
+    if isinstance(mock_agent.return_value, dict):
+        mock_agent.return_value['new_words'] = parsed
     else:
-        mock_agent.run = AsyncMock(
-            return_value={
-                'cefr_level': 'B1',
-                'lexical_assessment': 'Good.',
-                'fluency_assessment': 'Good.',
-                'grammar_assessment': 'Good.',
-                'suggestions': ['Keep practicing.'],
-                'new_words': parsed,
-            }
-        )
+        mock_agent.return_value = {
+            'cefr_level': 'B1',
+            'lexical_assessment': 'Good.',
+            'fluency_assessment': 'Good.',
+            'grammar_assessment': 'Good.',
+            'suggestions': ['Keep practicing.'],
+            'new_words': parsed,
+        }
 
 
 @given('模擬 Claude Agent 回傳 new_words 為空列表')
-def mock_agent_empty_words(mock_agent: AsyncMock) -> None:
-    result = mock_agent.run.return_value
-    result['new_words'] = []
+def mock_agent_empty_words(mock_agent: MockStreamAgent) -> None:
+    mock_agent.return_value['new_words'] = []
 
 
 # --- Given: vocabulary state ---

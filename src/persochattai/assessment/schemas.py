@@ -36,15 +36,12 @@ class SnapshotRepositoryProtocol(Protocol):
 
 
 @runtime_checkable
-class AssessmentAgentProtocol(Protocol):
-    async def run(self, transcript: str) -> dict[str, Any]: ...
-
-
-@runtime_checkable
 class AssessmentServiceProtocol(Protocol):
     async def evaluate(
         self, *, conversation_id: str, user_id: str, transcript: str
     ) -> dict[str, Any] | None: ...
+
+    async def get_user_history(self, user_id: str) -> dict[str, Any]: ...
 
 
 @dataclass

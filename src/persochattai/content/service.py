@@ -8,6 +8,7 @@ from typing import Any
 
 import pdfplumber
 
+from persochattai.agent_run import StreamableAgent, agent_run
 from persochattai.content.schemas import CardRepositoryProtocol
 from persochattai.content.scraper.protocol import RawArticle
 
@@ -21,7 +22,7 @@ class ContentServiceError(Exception):
 
 
 class ContentService:
-    def __init__(self, repository: CardRepositoryProtocol, agent: Any) -> None:
+    def __init__(self, repository: CardRepositoryProtocol, agent: StreamableAgent) -> None:
         self._repo = repository
         self._agent = agent
 
@@ -86,7 +87,7 @@ class ContentService:
         context_label: str = '',
     ) -> list[dict[str, Any]]:
         try:
-            result = await self._agent.run(text)
+            result = await agent_run(self._agent, text)
         except Exception as e:
             logger.error('Claude Agent 摘要失敗: %s', context_label)
             raise ContentServiceError('摘要失敗') from e

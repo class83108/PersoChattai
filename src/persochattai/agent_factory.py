@@ -13,7 +13,14 @@ from agent_core.skills.registry import SkillRegistry
 from agent_core.tools.registry import ToolRegistry
 from agent_core.usage_monitor import UsageMonitor
 
+from persochattai.assessment.schemas import AssessmentServiceProtocol
 from persochattai.config import Settings
+from persochattai.content.schemas import CardRepositoryProtocol
+from persochattai.tools import (
+    build_assessment_tool_registry,
+    build_content_tool_registry,
+    build_conversation_tool_registry,
+)
 
 _provider: AnthropicProvider | None = None
 _usage_monitor: UsageMonitor | None = None
@@ -120,25 +127,38 @@ def _build_agent(
     )
 
 
-def create_content_agent(settings: Settings) -> Agent:
+def create_content_agent(
+    settings: Settings,
+    card_repo: CardRepositoryProtocol,
+) -> Agent:
     return _build_agent(
         settings=settings,
         system_prompt='你是英文學習內容摘要助手。使用繁體中文回應。',
         skills=[CONTENT_SUMMARIZER],
+        tool_registry=build_content_tool_registry(card_repo),
     )
 
 
-def create_conversation_agent(settings: Settings) -> Agent:
+def create_conversation_agent(
+    settings: Settings,
+    card_repo: CardRepositoryProtocol,
+    assessment_service: AssessmentServiceProtocol,
+) -> Agent:
     return _build_agent(
         settings=settings,
         system_prompt='你是英文 Role Play 情境設計助手。使用繁體中文回應。',
         skills=[SCENARIO_DESIGNER],
+        tool_registry=build_conversation_tool_registry(card_repo, assessment_service),
     )
 
 
-def create_assessment_agent(settings: Settings) -> Agent:
+def create_assessment_agent(
+    settings: Settings,
+    assessment_service: AssessmentServiceProtocol,
+) -> Agent:
     return _build_agent(
         settings=settings,
         system_prompt='你是英文能力評估助手。使用繁體中文回應。',
         skills=[TRANSCRIPT_EVALUATOR],
+        tool_registry=build_assessment_tool_registry(assessment_service),
     )
