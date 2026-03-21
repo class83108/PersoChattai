@@ -63,9 +63,19 @@ def mock_manager() -> MagicMock:
             state['status'] = 'assessing'
         return {'conversation_id': conv_id, 'status': 'assessing'}
 
+    async def _cancel(conv_id: str) -> dict[str, Any]:
+        state = states.get(conv_id)
+        if state:
+            if state['status'] in ('completed', 'failed', 'cancelled'):
+                msg = f'Cannot cancel conversation in {state["status"]} state'
+                raise ValueError(msg)
+            state['status'] = 'cancelled'
+        return {'conversation_id': conv_id, 'status': 'cancelled'}
+
     manager.start_conversation = AsyncMock(side_effect=_start)
     manager.get_state = AsyncMock(side_effect=_get_state)
     manager.end_conversation = AsyncMock(side_effect=_end)
+    manager.cancel_conversation = AsyncMock(side_effect=_cancel)
     manager.get_history = AsyncMock(return_value=[])
     manager.has_active_conversation = AsyncMock(return_value=False)
     return manager
@@ -245,6 +255,19 @@ def query_history(user_id: str, client: TestClient) -> Any:
 @when(parsers.parse('以 "{value}" 查詢對話歷史'), target_fixture='response')
 def query_history_invalid(value: str, client: TestClient) -> Any:
     return client.get(f'/api/conversation/history/{value}')
+
+
+# --- When: 取消對話 ---
+
+
+@when('取消該對話', target_fixture='response')
+def cancel_conversation(client: TestClient, ctx: dict[str, Any]) -> Any:
+    return client.post(f'/api/conversation/{ctx["conversation_id"]}/cancel')
+
+
+@when('以不存在的 conversation_id 取消對話', target_fixture='response')
+def cancel_nonexistent(client: TestClient) -> Any:
+    return client.post(f'/api/conversation/{uuid.uuid4()}/cancel')
 
 
 # --- When: 跨 endpoint ---

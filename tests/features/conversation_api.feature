@@ -91,6 +91,24 @@ Feature: 對話 API
       When 以 "not-a-uuid" 查詢對話歷史
       Then 回應狀態碼為 422
 
+  Rule: 取消對話
+
+    Scenario: 取消進行中的對話
+      Given 使用者 "user-1" 有一個 active 對話
+      When 取消該對話
+      Then 回應狀態碼為 200
+      And 回應包含 conversation_id
+      And 回應包含 status
+
+    Scenario: 取消已結束的對話回傳 409
+      Given 使用者 "user-1" 有一個 completed 對話
+      When 取消該對話
+      Then 回應狀態碼為 409
+
+    Scenario: 取消不存在的對話回傳 404
+      When 以不存在的 conversation_id 取消對話
+      Then 回應狀態碼為 404
+
   Rule: 跨 endpoint 狀態一致性
 
     Scenario: 建立對話後可透過查詢 API 取得
