@@ -144,3 +144,26 @@ Feature: 對話生命週期管理
       When 使用者結束對話
       Then 系統應記錄錯誤日誌
       And 對話狀態轉為 failed
+
+  Rule: 對話結束觸發評估
+
+    Scenario: 有 transcript 時觸發評估 pipeline
+      Given 使用者 "user-1" 有一個 active 對話且已收集 transcript
+      When 使用者結束對話
+      Then 對話狀態轉為 assessing
+      And 系統呼叫 AssessmentService.evaluate
+      And 評估完成後狀態轉為 completed
+
+    Scenario: 無 transcript 時不觸發評估
+      Given 使用者 "user-1" 有一個 active 對話但無 transcript
+      When 使用者結束對話
+      Then 對話狀態直接轉為 cancelled
+      And 系統不呼叫 AssessmentService.evaluate
+
+    Scenario: 評估 pipeline 失敗時對話仍標為 completed
+      Given 使用者 "user-1" 有一個 active 對話且已收集 transcript
+      And AssessmentService.evaluate 會拋出例外
+      When 使用者結束對話
+      Then 對話狀態轉為 assessing
+      And 系統記錄評估失敗 error log
+      And 對話狀態最終轉為 completed
