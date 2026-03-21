@@ -16,6 +16,7 @@ from persochattai.content.router import router as content_router
 from persochattai.conversation.router import router as conversation_router
 from persochattai.db import close_pool, get_pool, init_pool
 from persochattai.usage.repository import UsageRepository
+from persochattai.usage.router import router as usage_router
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(content_router)
     app.include_router(conversation_router)
     app.include_router(assessment_router)
+    app.include_router(usage_router)
 
     @app.get('/health')
     async def health() -> dict[str, str]:

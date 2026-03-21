@@ -410,6 +410,20 @@ user_level_snapshots (
   conversation_count int,    -- 截至此快照的總對話數
   created_at timestamptz
 )
+
+api_usage (
+  id uuid PK,
+  usage_type text,             -- 'token' | 'audio'
+  model text,
+  input_tokens int,
+  output_tokens int,
+  cache_creation_input_tokens int,
+  cache_read_input_tokens int,
+  audio_duration_sec float,
+  direction text,              -- 'input' | 'output'（audio only）
+  cost_usd float,
+  created_at timestamptz
+)
 ```
 
 ## 技術選型
@@ -417,8 +431,8 @@ user_level_snapshots (
 | 層級 | 技術 | 理由 |
 |------|------|------|
 | Agent 框架 | BYOA Core | Protocol-based 可擴展、session/tool 管理、內建 UsageMonitor |
-| 語音對話 | Gemini Live API | 低延遲、內建雙向 transcript |
-| 思考/評估 | Claude API (via BYOA) | 情境設計、能力評估、內容摘要 |
+| 語音對話 | Gemini Live API | 低延遲、內建雙向 transcript。模型可配置（預設 gemini-2.0-flash） |
+| 思考/評估 | Claude API (via BYOA) | 情境設計、能力評估、內容摘要。模型可配置（預設 claude-sonnet-4-20250514） |
 | 後端 | FastAPI | async、與 FastRTC 整合 |
 | 即時音訊 | FastRTC | WebRTC 封裝、Python 原生、mount FastAPI |
 | 前端 | HTMX + vanilla JS | server-side rendering、輕量 PWA |
@@ -427,6 +441,7 @@ user_level_snapshots (
 | NLP 指標 | lexical_diversity + spaCy | MTLD/VOCD-D 計算、語法分析 |
 | 品質 | ruff + pyright + pytest-bdd | 既有工作流 |
 | 部署 | VPS | 單機部署、.env 管 API key |
+| 模型配置 | Settings + /api/settings 端點 | Claude / Gemini 模型可從前端切換，定價表隨模型連動 |
 
 ## MVP 範圍
 

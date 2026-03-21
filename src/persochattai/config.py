@@ -22,6 +22,8 @@ class Settings:
     anthropic_api_key: str
     gemini_api_key: str
     debug: bool = False
+    claude_model: str = 'claude-sonnet-4-20250514'
+    gemini_model: str = 'gemini-2.0-flash'
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -31,4 +33,6 @@ class Settings:
             anthropic_api_key=_require_env('ANTHROPIC_API_KEY'),
             gemini_api_key=_require_env('GEMINI_API_KEY'),
             debug=os.environ.get('DEBUG', 'false').lower() == 'true',
+            claude_model=os.environ.get('CLAUDE_MODEL', 'claude-sonnet-4-20250514'),
+            gemini_model=os.environ.get('GEMINI_MODEL', 'gemini-2.0-flash'),
         )
