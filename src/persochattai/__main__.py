@@ -12,7 +12,7 @@ def main() -> None:
     uvicorn.run(
         'persochattai.app:create_app',
         factory=True,
-        host='0.0.0.0',
+        host='127.0.0.1',
         port=8000,
         reload=settings.debug,
     )
