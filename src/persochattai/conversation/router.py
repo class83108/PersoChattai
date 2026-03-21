@@ -67,3 +67,17 @@ async def end_conversation(conversation_id: uuid.UUID, request: Request) -> dict
         raise HTTPException(status_code=409, detail='對話非 active 狀態')
 
     return await manager.end_conversation(str(conversation_id))
+
+
+@router.post('/{conversation_id}/cancel')
+async def cancel_conversation(conversation_id: uuid.UUID, request: Request) -> dict[str, Any]:
+    manager = _get_manager(request)
+
+    state = await manager.get_state(str(conversation_id))
+    if state is None:
+        raise HTTPException(status_code=404, detail='對話不存在')
+
+    if state['status'] in ('completed', 'failed', 'cancelled'):
+        raise HTTPException(status_code=409, detail=f'對話已 {state["status"]}，無法取消')
+
+    return await manager.cancel_conversation(str(conversation_id))

@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 
 _TRANSCRIPT_RETRY_COUNT = 3
 _TRANSCRIPT_RETRY_DELAYS = [1, 2]  # seconds between retries
+_TIME_LIMIT_WARNING_SEC = 13 * 60  # 13 分鐘
+_TIME_LIMIT_SEC = 15 * 60  # 15 分鐘
+_SILENCE_TIMEOUT_SEC = 120  # 2 分鐘
+_SILENCE_CHECK_INTERVAL_SEC = 10  # 每 10 秒檢查
 
 S = ConversationStatus
 
@@ -89,6 +93,9 @@ class ConversationManager:
         self.transition_state(conv_id, S.ACTIVE)
         await self._repository.update_status(conv_id, S.ACTIVE)
 
+        self._schedule_timeout(conv_id)
+        self._start_silence_monitor(conv_id)
+
         return self._build_response(conv_id)
 
     async def end_conversation(self, conversation_id: str) -> dict[str, Any]:
@@ -97,6 +104,8 @@ class ConversationManager:
         if conv['status'] != S.ACTIVE:
             msg = f'Cannot end conversation in {conv["status"]} state'
             raise ValueError(msg)
+
+        self._cleanup_conversation(conversation_id)
 
         transcript_text = self._extract_transcript_text(conv['transcript'])
 
@@ -167,6 +176,8 @@ class ConversationManager:
         if not conv:
             return
 
+        self._cleanup_conversation(conversation_id)
+
         try:
             await self._save_transcript_with_retry(conversation_id, conv['transcript'])
         except Exception:
@@ -177,9 +188,10 @@ class ConversationManager:
 
     async def handle_silence_timeout(self, conversation_id: str) -> None:
         conv = self._conversations.get(conversation_id)
-        if not conv:
+        if not conv or conv['status'] != S.ACTIVE:
             return
 
+        self._cleanup_conversation(conversation_id)
         await self._finalize_conversation(conversation_id, conv['transcript'], S.ASSESSING)
 
         self._notifications_sent[conversation_id] = {
@@ -280,11 +292,45 @@ class ConversationManager:
         if not conv or conv['status'] != S.ACTIVE:
             return
 
+        self._cleanup_conversation(conversation_id)
         await self._finalize_conversation(conversation_id, conv['transcript'], S.ASSESSING)
+
+    def _schedule_timeout(self, conversation_id: str) -> None:
+        async def _timeout_sequence() -> None:
+            await asyncio.sleep(_TIME_LIMIT_WARNING_SEC)
+            await self._on_time_limit_warning(conversation_id)
+            await asyncio.sleep(_TIME_LIMIT_SEC - _TIME_LIMIT_WARNING_SEC)
+            await self._on_time_limit_reached(conversation_id)
+
+        task = asyncio.create_task(_timeout_sequence())
+        self._timeout_tasks[conversation_id] = task
+
+    def _start_silence_monitor(self, conversation_id: str) -> None:
+        self._silence_timers[conversation_id] = asyncio.get_event_loop().time()
+
+        async def _check_silence() -> None:
+            while True:
+                await asyncio.sleep(_SILENCE_CHECK_INTERVAL_SEC)
+                last_audio = self._silence_timers.get(conversation_id)
+                if last_audio is None:
+                    return
+                elapsed = asyncio.get_event_loop().time() - last_audio
+                if elapsed > _SILENCE_TIMEOUT_SEC:
+                    await self.handle_silence_timeout(conversation_id)
+                    return
+
+        task = asyncio.create_task(_check_silence())
+        key = f'{conversation_id}_silence'
+        self._timeout_tasks[key] = task
 
     def _cleanup_conversation(self, conversation_id: str) -> None:
         self._warning_sent.pop(conversation_id, None)
         self._silence_timers.pop(conversation_id, None)
+        # Cancel timeout task
         task = self._timeout_tasks.pop(conversation_id, None)
         if task and not task.done():
             task.cancel()
+        # Cancel silence monitor task
+        silence_task = self._timeout_tasks.pop(f'{conversation_id}_silence', None)
+        if silence_task and not silence_task.done():
+            silence_task.cancel()
