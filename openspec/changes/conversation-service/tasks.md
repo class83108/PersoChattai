@@ -29,12 +29,12 @@
 
 ## 5. FastRTC 整合
 
-- [ ] 5.1 建立 Stream mount 至 FastAPI app（/api/conversation/rtc）
-- [ ] 5.2 整合 GeminiHandler + ConversationManager（handler 事件回呼 manager）
+- [x] 5.1 建立 Stream mount 至 FastAPI app（/api/conversation/rtc）
+- [x] 5.2 整合 GeminiHandler + ConversationManager（handler 事件回呼 manager）
 
 ## 6. 驗證
 
 - [x] 6.1 撰寫 .feature 檔（conversation-api, conversation-lifecycle, gemini-realtime）
-- [x] 6.2 撰寫 pytest-bdd step definitions（60 tests 全通過）
+- [x] 6.2 撰寫 pytest-bdd step definitions（65 tests 全通過）
 - [x] 6.3 確認 ruff check + ruff format + pyright 全部通過
 - [x] 6.4 Design review + 重構（Protocol、狀態機一致性、消除重複）
