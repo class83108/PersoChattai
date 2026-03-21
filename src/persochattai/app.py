@@ -15,6 +15,7 @@ from persochattai.config import Settings
 from persochattai.content.router import router as content_router
 from persochattai.conversation.router import router as conversation_router
 from persochattai.db import close_pool, get_pool, init_pool
+from persochattai.usage.model_config_repository import ModelConfigRepository
 from persochattai.usage.repository import UsageRepository
 from persochattai.usage.router import router as usage_router
 
@@ -25,9 +26,19 @@ logger = logging.getLogger(__name__)
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     await init_pool(settings.db_url)
-    repo = UsageRepository(get_pool())
-    monitor = init_usage_monitor(repository=repo)
+    pool = get_pool()
+
+    model_config_repo = ModelConfigRepository(pool)
+    await model_config_repo.seed_defaults()
+    app.state.model_config_repo = model_config_repo
+
+    usage_repo = UsageRepository(pool)
+    monitor = init_usage_monitor(
+        repository=usage_repo,
+        model_config_repo=model_config_repo,
+    )
     await monitor.load_history()
+
     logger.info('App 啟動完成')
     yield
     await close_pool()

@@ -10,9 +10,7 @@ from typing import Any
 from agent_core.usage_monitor import UsageMonitor
 
 from persochattai.usage.schemas import (
-    DEFAULT_GEMINI_AUDIO_PRICING,
     FALLBACK_GEMINI_PRICING,
-    GEMINI_AUDIO_PRICING,
     AudioDirection,
     GeminiAudioRecord,
     ModelConfigRepositoryProtocol,
@@ -68,27 +66,14 @@ class ExtendedUsageMonitor(UsageMonitor):
     def _gemini_audio_cost(self) -> float:
         total = 0.0
         for rec in self.audio_records:
-            # Try token-based pricing from DB cache first
             if rec.model in self._pricing_cache:
                 pricing = self._pricing_cache[rec.model]
-                tokens_per_sec = pricing.get('tokens_per_sec', 25)
-                audio_input_price = pricing.get('audio_input', 0.70)
-                total += rec.audio_duration_sec * tokens_per_sec * audio_input_price / 1_000_000
-            elif self.model_config_repo is not None:
-                # DB-backed but model not in cache → fallback
-                logger.warning('模型 %s 不在定價 cache 中，使用 fallback 定價', rec.model)
-                tokens_per_sec = FALLBACK_GEMINI_PRICING['tokens_per_sec']
-                audio_input_price = FALLBACK_GEMINI_PRICING['audio_input']
-                total += rec.audio_duration_sec * tokens_per_sec * audio_input_price / 1_000_000
             else:
-                # Legacy per-second pricing (no model_config_repo)
-                pricing = GEMINI_AUDIO_PRICING.get(rec.model, DEFAULT_GEMINI_AUDIO_PRICING)
-                key = f'{rec.direction}_per_second'
-                rate = pricing.get(key)
-                if rate is None:
-                    logger.warning('音訊定價 key 不存在: %s (direction=%s)', key, rec.direction)
-                    rate = 0.0
-                total += rec.audio_duration_sec * rate
+                logger.warning('模型 %s 不在定價 cache 中，使用 fallback 定價', rec.model)
+                pricing = FALLBACK_GEMINI_PRICING
+            tokens_per_sec = pricing.get('tokens_per_sec', 25)
+            audio_input_price = pricing.get('audio_input', 0.70)
+            total += rec.audio_duration_sec * tokens_per_sec * audio_input_price / 1_000_000
         return total
 
     def get_summary(self) -> dict[str, Any]:

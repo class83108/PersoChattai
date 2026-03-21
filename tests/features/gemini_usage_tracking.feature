@@ -43,19 +43,19 @@ Feature: Gemini 音訊用量追蹤
       Then 回傳包含 "timestamp" 和 "audio_duration_sec" 和 "direction" 和 "model"
       And "audio_duration_sec" 值為 10.0
 
-  Rule: Gemini 音訊定價計算
+  Rule: Gemini 音訊定價計算（token-based fallback）
 
-    Scenario: 已知模型的音訊成本
+    Scenario: 無 model_config_repo 時使用 fallback 定價
       Given 一個 ExtendedUsageMonitor 實例
       And 已記錄一筆 gemini-2.0-flash input 音訊 30 秒
       When 計算 gemini 音訊總成本
-      Then 成本等於 30 乘以 gemini-2.0-flash 的 input_per_second
+      Then 成本等於 30 秒的 token-based fallback 定價
 
-    Scenario: 未知模型使用預設定價
+    Scenario: 未知模型也使用 fallback 定價
       Given 一個 ExtendedUsageMonitor 實例
       And 已記錄一筆 unknown-model input 音訊 10 秒
       When 計算 gemini 音訊總成本
-      Then 成本等於 10 乘以預設 input_per_second
+      Then 成本等於 10 秒的 token-based fallback 定價
 
   Rule: get_summary 包含 Gemini 成本
 
