@@ -32,4 +32,4 @@
 
 - [x] 5.1 全部 pytest 通過（189 tests = 173 既有 + 16 新增）
 - [x] 5.2 ruff check + ruff format + pyright 通過
-- [ ] 5.3 Design review
+- [x] 5.3 Design review
