@@ -1,9 +1,9 @@
 ## 1. Schemas + Repository
 
 - [x] 1.1 建立 assessment/schemas.py — NlpMetrics、AssessmentRepositoryProtocol、VocabularyRepositoryProtocol、SnapshotRepositoryProtocol、AssessmentAgentProtocol、AssessmentServiceProtocol
-- [ ] 1.2 建立 assessment/repository.py — AssessmentRepository（create、get_by_id、list_by_user、count_by_user）
-- [ ] 1.3 建立 assessment/vocabulary_repository.py — UserVocabularyRepository（upsert_words、get_vocabulary_stats）
-- [ ] 1.4 建立 assessment/snapshot_repository.py — LevelSnapshotRepository（create_snapshot、get_latest、list_snapshots）
+- [x] 1.2 建立 assessment/repository.py — AssessmentRepository（create、get_by_id、list_by_user、count_by_user）
+- [x] 1.3 建立 assessment/vocabulary_repository.py — UserVocabularyRepository（upsert_words、get_vocabulary_stats）
+- [x] 1.4 建立 assessment/snapshot_repository.py — LevelSnapshotRepository（create_snapshot、get_latest）
 
 ## 2. NLP Pipeline
 
@@ -40,5 +40,3 @@
 - [x] 6.2 撰寫 pytest-bdd step definitions
 - [x] 6.3 確認 ruff check + ruff format + pyright 全部通過
 - [x] 6.4 Design review
-
-> 備註：1.2–1.4 repository adapter 層留待 DB migration 時實作（目前測試透過 mock 驗證介面契約）
