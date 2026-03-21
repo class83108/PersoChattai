@@ -9,12 +9,13 @@ from typing import Any
 
 from fastapi import FastAPI
 
-from persochattai.agent_factory import get_usage_monitor
+from persochattai.agent_factory import get_usage_monitor, init_usage_monitor
 from persochattai.assessment.router import router as assessment_router
 from persochattai.config import Settings
 from persochattai.content.router import router as content_router
 from persochattai.conversation.router import router as conversation_router
-from persochattai.db import close_pool, init_pool
+from persochattai.db import close_pool, get_pool, init_pool
+from persochattai.usage.repository import UsageRepository
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,9 @@ logger = logging.getLogger(__name__)
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     await init_pool(settings.db_url)
+    repo = UsageRepository(get_pool())
+    monitor = init_usage_monitor(repository=repo)
+    await monitor.load_history()
     logger.info('App 啟動完成')
     yield
     await close_pool()

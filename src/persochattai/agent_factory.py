@@ -11,7 +11,6 @@ from agent_core.providers.anthropic_provider import AnthropicProvider
 from agent_core.skills.base import Skill
 from agent_core.skills.registry import SkillRegistry
 from agent_core.tools.registry import ToolRegistry
-from agent_core.usage_monitor import UsageMonitor
 
 from persochattai.assessment.schemas import AssessmentServiceProtocol
 from persochattai.config import Settings
@@ -21,9 +20,11 @@ from persochattai.tools import (
     build_content_tool_registry,
     build_conversation_tool_registry,
 )
+from persochattai.usage.monitor import ExtendedUsageMonitor
+from persochattai.usage.schemas import UsageRepositoryProtocol
 
 _provider: AnthropicProvider | None = None
-_usage_monitor: UsageMonitor | None = None
+_usage_monitor: ExtendedUsageMonitor | None = None
 
 
 def _get_provider(settings: Settings) -> AnthropicProvider:
@@ -37,15 +38,16 @@ def _get_provider(settings: Settings) -> AnthropicProvider:
     return _provider
 
 
-def _get_usage_monitor() -> UsageMonitor:
+def init_usage_monitor(repository: UsageRepositoryProtocol | None = None) -> ExtendedUsageMonitor:
     global _usage_monitor
-    if _usage_monitor is None:
-        _usage_monitor = UsageMonitor()
+    _usage_monitor = ExtendedUsageMonitor(repository=repository)
     return _usage_monitor
 
 
-def get_usage_monitor() -> UsageMonitor:
-    return _get_usage_monitor()
+def get_usage_monitor() -> ExtendedUsageMonitor:
+    if _usage_monitor is None:
+        return init_usage_monitor()
+    return _usage_monitor
 
 
 # --- Skills ---
@@ -104,7 +106,7 @@ def _build_agent(
     tool_registry: ToolRegistry | None = None,
 ) -> Agent:
     provider = _get_provider(settings)
-    usage_monitor = _get_usage_monitor()
+    usage_monitor = get_usage_monitor()
 
     skill_registry = SkillRegistry()
     for skill in skills:
