@@ -219,3 +219,58 @@ def _start_app(settings: Settings, ctx: dict[str, Any]) -> None:
         ctx['pool_closed'] = True
 
     ctx['cleanup'] = cleanup
+
+
+# --- Non-BDD unit tests ---
+
+
+def test_main_calls_uvicorn(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv('DB_URL', 'postgresql://localhost/test')
+    monkeypatch.setenv('ANTHROPIC_API_KEY', 'sk-test')
+    monkeypatch.setenv('GEMINI_API_KEY', 'ai-test')
+    mock_run = MagicMock()
+    monkeypatch.setattr('persochattai.__main__.uvicorn.run', mock_run)
+
+    from persochattai.__main__ import main
+
+    main()
+
+    mock_run.assert_called_once()
+    call_kwargs = mock_run.call_args
+    assert call_kwargs[1]['host'] == '127.0.0.1'
+    assert call_kwargs[1]['port'] == 8000
+
+
+def test_create_gemini_client_with_import_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    import builtins
+
+    original_import = builtins.__import__
+
+    def mock_import(name: str, *args: Any, **kwargs: Any) -> Any:
+        if name == 'google.genai':
+            raise ImportError('no google.genai')
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, '__import__', mock_import)
+
+    from persochattai.app import _create_gemini_client
+
+    settings = Settings(
+        db_url='postgresql://localhost/test',
+        anthropic_api_key='sk-test',
+        gemini_api_key='ai-test',
+    )
+    client = _create_gemini_client(settings)
+    assert client is not None
+
+
+def test_create_gemini_client_success() -> None:
+    from persochattai.app import _create_gemini_client
+
+    settings = Settings(
+        db_url='postgresql://localhost/test',
+        anthropic_api_key='sk-test',
+        gemini_api_key='ai-test',
+    )
+    client = _create_gemini_client(settings)
+    assert client is not None

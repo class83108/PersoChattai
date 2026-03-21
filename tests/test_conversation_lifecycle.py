@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import uuid
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -516,3 +517,126 @@ def check_eval_error_logged(caplog: pytest.LogCaptureFixture) -> None:
 def check_final_completed(manager: Any, ctx: dict[str, Any]) -> None:
     state = manager.get_state(ctx['conversation_id'])
     assert state['status'] == 'completed'
+
+
+# --- Async unit tests for timeout/silence scheduling ---
+
+
+def _make_manager(
+    mock_repo: MagicMock | None = None,
+    mock_assessment_service: AsyncMock | None = None,
+) -> Any:
+    from persochattai.conversation.manager import ConversationManager
+
+    repo = mock_repo or MagicMock(
+        create=AsyncMock(),
+        update_status=AsyncMock(),
+        save_transcript=AsyncMock(),
+        update_ended_at=AsyncMock(),
+        list_by_user=AsyncMock(return_value=[]),
+    )
+    designer = AsyncMock(return_value='You are an English tutor.')
+    client = MagicMock()
+    client.aio.live.connect = AsyncMock()
+
+    return ConversationManager(
+        repository=repo,
+        scenario_designer=designer,
+        gemini_client=client,
+        assessment_service=mock_assessment_service,
+    )
+
+
+@pytest.mark.asyncio
+async def test_schedule_timeout_creates_task() -> None:
+    mgr = _make_manager()
+    result = await mgr.start_conversation('u1', 'card', 'c1')
+    conv_id = result['conversation_id']
+
+    assert conv_id in mgr._timeout_tasks
+    assert f'{conv_id}_silence' in mgr._timeout_tasks
+
+    mgr._cleanup_conversation(conv_id)
+
+
+@pytest.mark.asyncio
+async def test_cleanup_cancels_timeout_and_silence_tasks() -> None:
+    mgr = _make_manager()
+    result = await mgr.start_conversation('u1', 'card', 'c1')
+    conv_id = result['conversation_id']
+
+    timeout_task = mgr._timeout_tasks.get(conv_id)
+    silence_task = mgr._timeout_tasks.get(f'{conv_id}_silence')
+    assert timeout_task is not None
+    assert silence_task is not None
+
+    mgr._cleanup_conversation(conv_id)
+    await asyncio.sleep(0)  # let cancellation propagate
+
+    assert timeout_task.cancelled()
+    assert silence_task.cancelled()
+    assert conv_id not in mgr._timeout_tasks
+    assert f'{conv_id}_silence' not in mgr._timeout_tasks
+
+
+@pytest.mark.asyncio
+async def test_end_conversation_cleans_up_tasks() -> None:
+    mgr = _make_manager()
+    result = await mgr.start_conversation('u1', 'card', 'c1')
+    conv_id = result['conversation_id']
+
+    conv = mgr._conversations[conv_id]
+    conv['transcript'] = [{'role': 'user', 'text': 'Hello'}]
+
+    await mgr.end_conversation(conv_id)
+
+    assert conv_id not in mgr._timeout_tasks
+    assert f'{conv_id}_silence' not in mgr._timeout_tasks
+
+
+@pytest.mark.asyncio
+async def test_silence_monitor_triggers_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    import persochattai.conversation.manager as mgr_mod
+
+    monkeypatch.setattr(mgr_mod, '_SILENCE_CHECK_INTERVAL_SEC', 0)
+    monkeypatch.setattr(mgr_mod, '_SILENCE_TIMEOUT_SEC', 0)
+    monkeypatch.setattr(mgr_mod, '_TRANSCRIPT_RETRY_DELAYS', [0, 0])
+
+    mgr = _make_manager()
+    result = await mgr.start_conversation('u1', 'card', 'c1')
+    conv_id = result['conversation_id']
+    conv = mgr._conversations[conv_id]
+    conv['transcript'] = [{'role': 'user', 'text': 'Hi'}]
+
+    # Set silence timer to past
+    mgr._silence_timers[conv_id] = asyncio.get_event_loop().time() - 200
+
+    silence_task = mgr._timeout_tasks.get(f'{conv_id}_silence')
+    if silence_task:
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.wait_for(silence_task, timeout=2)
+
+    assert conv['status'] in ('assessing', 'completed')
+
+
+@pytest.mark.asyncio
+async def test_timeout_sequence_fires(monkeypatch: pytest.MonkeyPatch) -> None:
+    import persochattai.conversation.manager as mgr_mod
+
+    monkeypatch.setattr(mgr_mod, '_TIME_LIMIT_WARNING_SEC', 0)
+    monkeypatch.setattr(mgr_mod, '_TIME_LIMIT_SEC', 0)
+    monkeypatch.setattr(mgr_mod, '_TRANSCRIPT_RETRY_DELAYS', [0, 0])
+
+    mgr = _make_manager()
+    result = await mgr.start_conversation('u1', 'card', 'c1')
+    conv_id = result['conversation_id']
+    conv = mgr._conversations[conv_id]
+    conv['transcript'] = [{'role': 'user', 'text': 'Hi'}]
+
+    timeout_task = mgr._timeout_tasks.get(conv_id)
+    if timeout_task:
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.wait_for(timeout_task, timeout=2)
+
+    # warning_sent is cleared by _cleanup_conversation, so just verify the timeout completed
+    assert conv['status'] in ('assessing', 'completed')
