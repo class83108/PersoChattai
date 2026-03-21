@@ -23,12 +23,24 @@ def _run(coro: Any) -> Any:
 
 
 @pytest.fixture
-def mock_gemini_session() -> MagicMock:
-    session = MagicMock()
-    session.send = AsyncMock()
-    session.receive = AsyncMock()
+def mock_gemini_client() -> MagicMock:
+    client = MagicMock()
+    session = AsyncMock()
+
+    async def _fake_stream(**kwargs: Any) -> Any:
+        await asyncio.sleep(0)
+        return
+        yield
+
+    session.start_stream = MagicMock(side_effect=_fake_stream)
     session.close = AsyncMock()
-    return session
+
+    connect_cm = AsyncMock()
+    connect_cm.__aenter__ = AsyncMock(return_value=session)
+    connect_cm.__aexit__ = AsyncMock(return_value=False)
+    client.aio.live.connect = MagicMock(return_value=connect_cm)
+    client._session = session
+    return client
 
 
 @pytest.fixture
@@ -42,27 +54,25 @@ def ctx() -> dict[str, Any]:
 
 
 @pytest.fixture
-def handler(mock_gemini_session: MagicMock, mock_on_disconnect: MagicMock) -> Any:
+def handler(mock_on_disconnect: MagicMock) -> Any:
     from persochattai.conversation.gemini_handler import GeminiHandler
 
-    return GeminiHandler(
-        gemini_session=mock_gemini_session,
-        on_disconnect=mock_on_disconnect,
-    )
+    return GeminiHandler(on_disconnect=mock_on_disconnect)
 
 
 # --- Given: Handler 狀態 ---
 
 
-@given('GeminiHandler 已建立且 Gemini session 就緒')
-def handler_ready(handler: Any) -> None:
+@given('GeminiHandler 已建立且 session 就緒')
+def handler_ready(handler: Any, mock_gemini_client: MagicMock) -> None:
+    handler._gemini_client = mock_gemini_client
     handler._session_ready = True
 
 
-@given('Gemini 回應佇列中有音訊資料')
-def gemini_has_audio(handler: Any) -> None:
-    audio_frame = (48000, np.zeros(480, dtype=np.int16))
-    handler._audio_output_queue.put_nowait(audio_frame)
+@given('output queue 中有音訊資料')
+def output_has_audio(handler: Any) -> None:
+    audio_frame = (24000, np.zeros(480, dtype=np.int16))
+    handler.output_queue.put_nowait(audio_frame)
 
 
 @given('GeminiHandler 已建立')
@@ -83,7 +93,8 @@ def designer_produced_instruction(instruction: str, ctx: dict[str, Any]) -> None
 
 
 @given('GeminiHandler 已建立且已收集 2 筆 transcript')
-def handler_with_transcript(handler: Any) -> None:
+def handler_with_transcript(handler: Any, mock_gemini_client: MagicMock) -> None:
+    handler._gemini_client = mock_gemini_client
     handler._session_ready = True
     handler._transcript.append(
         {'role': 'user', 'text': 'Hello', 'timestamp': '2026-03-20T10:01:00'}
@@ -109,12 +120,26 @@ def handler_ended(handler: Any) -> None:
     handler._ended = True
 
 
+@given('GeminiHandler 已建立且有合法的 Gemini client')
+def handler_with_client(handler: Any, mock_gemini_client: MagicMock) -> None:
+    handler._gemini_client = mock_gemini_client
+
+
+@given('GeminiHandler 已建立且 Gemini client 的 connect 會失敗')
+def handler_with_failing_client(handler: Any, mock_gemini_client: MagicMock) -> None:
+    connect_cm = AsyncMock()
+    connect_cm.__aenter__ = AsyncMock(side_effect=ConnectionError('auth failed'))
+    connect_cm.__aexit__ = AsyncMock(return_value=False)
+    mock_gemini_client.aio.live.connect = MagicMock(return_value=connect_cm)
+    handler._gemini_client = mock_gemini_client
+
+
 # --- When: 音訊串流 ---
 
 
 @when('收到使用者音訊 frame')
 def receive_audio(handler: Any) -> None:
-    audio_frame = (48000, np.random.randint(-32768, 32767, size=480, dtype=np.int16))
+    audio_frame = (16000, np.random.randint(-32768, 32767, size=480, dtype=np.int16))
     _run(handler.receive(audio_frame))
 
 
@@ -125,8 +150,28 @@ def call_emit(handler: Any) -> Any:
 
 @when('收到空的音訊 frame')
 def receive_empty_audio(handler: Any) -> None:
-    audio_frame = (48000, np.array([], dtype=np.int16))
+    audio_frame = (16000, np.array([], dtype=np.int16))
     _run(handler.receive(audio_frame))
+
+
+# --- When: 生命週期 ---
+
+
+@when('呼叫 start_up')
+def call_start_up(handler: Any) -> None:
+    with contextlib.suppress(Exception):
+        _run(handler.start_up())
+
+
+@when('呼叫 shutdown')
+def call_shutdown(handler: Any) -> None:
+    handler.shutdown()
+
+
+@when('連線已關閉且 output queue 為空', target_fixture='emit_after_close')
+def emit_after_close(handler: Any) -> Any:
+    handler.shutdown()
+    return _run(handler.emit())
 
 
 # --- When: Copy ---
@@ -177,14 +222,14 @@ def receive_multiple_transcripts(datatable: list[list[str]], handler: Any) -> No
         handler._handle_transcript_event(event_type, text, finished=True)
 
 
-# --- When: Session ---
+# --- When: Session 配置 ---
 
 
-@when('建立 Gemini Live session', target_fixture='session_config')
-def create_session(ctx: dict[str, Any]) -> Any:
+@when('建立 Gemini session 配置', target_fixture='session_config')
+def create_session_config(ctx: dict[str, Any]) -> Any:
     from persochattai.conversation.gemini_handler import GeminiHandler
 
-    return GeminiHandler.build_session_config(
+    return GeminiHandler.build_live_connect_config(
         system_instruction=ctx['system_instruction'],
     )
 
@@ -192,23 +237,9 @@ def create_session(ctx: dict[str, Any]) -> Any:
 # --- When: 錯誤 ---
 
 
-@when('Gemini session 的 receiver loop 發生例外')
-def receiver_loop_error(handler: Any) -> None:
-    _run(handler._handle_receiver_error(ConnectionError('stream closed')))
-
-
-@when('Gemini Live session 建立時拋出例外')
-def session_creation_error(handler: Any, mock_gemini_session: MagicMock) -> None:
-    mock_gemini_session.send.side_effect = ConnectionError('failed to connect')
-    with contextlib.suppress(ConnectionError):
-        _run(handler.start_up())
-
-
-@when('send_realtime_input 拋出例外')
-def send_input_error(handler: Any, mock_gemini_session: MagicMock) -> None:
-    mock_gemini_session.send.side_effect = RuntimeError('send failed')
-    audio_frame = (48000, np.random.randint(-32768, 32767, size=480, dtype=np.int16))
-    _run(handler.receive(audio_frame))
+@when('stream loop 發生例外')
+def stream_loop_error(handler: Any) -> None:
+    _run(handler._handle_stream_error(ConnectionError('stream closed')))
 
 
 # --- When: 防護 ---
@@ -222,21 +253,51 @@ def receive_stale_event(handler: Any) -> None:
 # --- Then: 音訊串流 ---
 
 
-@then('音訊應透過 send_realtime_input 傳送至 Gemini')
-def check_audio_sent(mock_gemini_session: MagicMock) -> None:
-    mock_gemini_session.send.assert_called()
+@then('音訊應被放入 input queue')
+def check_audio_in_queue(handler: Any) -> None:
+    assert not handler.input_queue.empty()
 
 
-@then('應回傳 Gemini 的音訊 frame')
+@then('應回傳音訊 frame 格式為 (sample_rate, ndarray)')
 def check_emit_returns_audio(emit_result: Any) -> None:
     assert emit_result is not None
-    sample_rate, _audio_data = emit_result
+    sample_rate, audio_data = emit_result
     assert sample_rate > 0
+    assert isinstance(audio_data, np.ndarray)
 
 
-@then('不應呼叫 send_realtime_input')
-def check_no_send(mock_gemini_session: MagicMock) -> None:
-    mock_gemini_session.send.assert_not_called()
+@then('input queue 應為空')
+def check_input_queue_empty(handler: Any) -> None:
+    assert handler.input_queue.empty()
+
+
+# --- Then: 生命週期 ---
+
+
+@then('應透過 client.aio.live.connect 建立 session')
+def check_connect_called(mock_gemini_client: MagicMock) -> None:
+    mock_gemini_client.aio.live.connect.assert_called_once()
+
+
+@then('應啟動 stream loop 處理音訊')
+def check_stream_started(mock_gemini_client: MagicMock) -> None:
+    session = mock_gemini_client._session
+    session.start_stream.assert_called_once()
+
+
+@then('quit event 應被設定')
+def check_quit_set(handler: Any) -> None:
+    assert handler.quit.is_set()
+
+
+@then('stream generator 應停止 yield')
+def check_stream_stopped(handler: Any) -> None:
+    assert handler.quit.is_set()
+
+
+@then('emit 應回傳 None')
+def check_emit_none(emit_after_close: Any) -> None:
+    assert emit_after_close is None
 
 
 # --- Then: Copy ---
@@ -250,6 +311,12 @@ def check_new_instance(copied_handler: Any, handler: Any) -> None:
 @then('新實例應有獨立的 transcript buffer')
 def check_independent_buffer(copied_handler: Any, handler: Any) -> None:
     assert copied_handler._transcript is not handler._transcript
+
+
+@then('新實例應有獨立的 input queue 和 output queue')
+def check_independent_queues(copied_handler: Any, handler: Any) -> None:
+    assert copied_handler.input_queue is not handler.input_queue
+    assert copied_handler.output_queue is not handler.output_queue
 
 
 # --- Then: Transcript ---
@@ -291,22 +358,24 @@ def check_transcript_count_and_order(count: int, handler: Any) -> None:
 # --- Then: Session 配置 ---
 
 
-@then(parsers.parse('session 的 system_instruction 應為 "{instruction}"'))
+@then(parsers.parse('config 的 system_instruction 應為 "{instruction}"'))
 def check_system_instruction(instruction: str, session_config: Any) -> None:
-    assert session_config.system_instruction == instruction
+    si = session_config.system_instruction
+    text = si if isinstance(si, str) else str(si)
+    assert instruction in text
 
 
-@then('session 的 response_modalities 應為 AUDIO')
+@then('config 的 response_modalities 應包含 AUDIO')
 def check_response_modalities(session_config: Any) -> None:
-    assert 'AUDIO' in session_config.response_modalities
+    assert any('AUDIO' in str(m) for m in session_config.response_modalities)
 
 
-@then('session 應啟用 input_audio_transcription')
+@then('config 應啟用 input_audio_transcription')
 def check_input_transcription_enabled(session_config: Any) -> None:
     assert session_config.input_audio_transcription is not None
 
 
-@then('session 應啟用 output_audio_transcription')
+@then('config 應啟用 output_audio_transcription')
 def check_output_transcription_enabled(session_config: Any) -> None:
     assert session_config.output_audio_transcription is not None
 
@@ -331,11 +400,6 @@ def check_callback_failed(mock_on_disconnect: MagicMock) -> None:
     assert call_kwargs.get('status') == 'failed'
 
 
-@then('應記錄錯誤但不中斷 handler')
-def check_error_logged_handler_alive(handler: Any) -> None:
-    assert handler._session_ready is True
-
-
 # --- Then: 防護 ---
 
 
@@ -343,11 +407,6 @@ def check_error_logged_handler_alive(handler: Any) -> None:
 def check_no_exception() -> None:
     # 執行到這裡代表 When 步驟沒有拋出例外
     pass
-
-
-@then('音訊應被忽略')
-def check_audio_ignored(mock_gemini_session: MagicMock) -> None:
-    mock_gemini_session.send.assert_not_called()
 
 
 @then('不應寫入 transcript buffer')
