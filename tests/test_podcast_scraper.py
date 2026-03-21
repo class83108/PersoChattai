@@ -254,8 +254,68 @@ VALID_BBC_ARTICLE_HTML = """
 """
 
 
-# BBC scenarios reuse the same When steps via fixture override
-# The mock HTML context is set per-scraper in the Given steps
+@given('模擬 BBC 目標頁面回傳有效 HTML')
+def mock_valid_bbc_html(ctx: dict[str, Any]) -> None:
+    ctx['mock_html'] = VALID_BBC_LIST_HTML
+
+
+@given('模擬 BBC 文章頁面回傳有效 HTML')
+def mock_valid_bbc_article_html(ctx: dict[str, Any]) -> None:
+    ctx['mock_article_html'] = VALID_BBC_ARTICLE_HTML
+
+
+@given('模擬 BBC 文章頁面內容區域為空白')
+def mock_empty_bbc_content(ctx: dict[str, Any]) -> None:
+    ctx['mock_article_html'] = """
+    <html><body>
+    <h1>Empty Article</h1>
+    <div class="text"></div>
+    </body></html>
+    """
+
+
+@when('呼叫 BBC fetch_article_list', target_fixture='article_list')
+def call_bbc_fetch_list(
+    bbc_scraper: BBC6MinuteEnglishScraper, ctx: dict[str, Any]
+) -> list[ArticleMeta]:
+    mock_response = AsyncMock()
+    mock_response.status_code = ctx.get('mock_status', 200)
+    mock_response.text = ctx.get('mock_html', '')
+    mock_response.raise_for_status = MagicMock()
+    if ctx.get('mock_status', 200) >= 400:
+        import httpx
+
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            'Server Error', request=MagicMock(), response=mock_response
+        )
+
+    with patch('persochattai.content.scraper.bbc.httpx.AsyncClient') as mock_cls:
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_cls.return_value = mock_client
+        return _run(bbc_scraper.fetch_article_list())
+
+
+@when('呼叫 BBC fetch_article_content', target_fixture='raw_article')
+def call_bbc_fetch_content(
+    bbc_scraper: BBC6MinuteEnglishScraper, ctx: dict[str, Any]
+) -> RawArticle:
+    mock_response = AsyncMock()
+    mock_response.status_code = 200
+    mock_response.text = ctx.get('mock_article_html', VALID_BBC_ARTICLE_HTML)
+    mock_response.raise_for_status = MagicMock()
+
+    with patch('persochattai.content.scraper.bbc.httpx.AsyncClient') as mock_cls:
+        mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_cls.return_value = mock_client
+        return _run(
+            bbc_scraper.fetch_article_content('https://bbc.co.uk/features/6-minute-english/ep1')
+        )
 
 
 # --- Rule: Output Contract ---

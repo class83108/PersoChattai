@@ -44,15 +44,36 @@ Feature: Podcast 爬蟲
 
     Scenario: 成功取得文章列表
       Given BBC6MinuteEnglishScraper 已初始化
-      And 模擬目標頁面回傳有效 HTML
-      When 呼叫 fetch_article_list
+      And 模擬 BBC 目標頁面回傳有效 HTML
+      When 呼叫 BBC fetch_article_list
       Then 回傳 ArticleMeta 列表
+      And 每個 ArticleMeta 包含 url 和 title
 
     Scenario: 成功取得文章內容
       Given BBC6MinuteEnglishScraper 已初始化
-      And 模擬文章頁面回傳有效 HTML
-      When 呼叫 fetch_article_content
+      And 模擬 BBC 文章頁面回傳有效 HTML
+      When 呼叫 BBC fetch_article_content
       Then 回傳 RawArticle 包含 title content url
+
+    Scenario: BBC 目標頁面無法存取
+      Given BBC6MinuteEnglishScraper 已初始化
+      And 模擬目標頁面回傳 HTTP 500
+      When 呼叫 BBC fetch_article_list
+      Then 記錄 warning log
+      And 回傳空列表
+
+    Scenario: BBC HTML 結構變更導致解析失敗
+      Given BBC6MinuteEnglishScraper 已初始化
+      And 模擬目標頁面回傳非預期 HTML 結構
+      When 呼叫 BBC fetch_article_list
+      Then 記錄 warning log 包含解析失敗位置
+      And 回傳空列表
+
+    Scenario: BBC 文章內容為空白
+      Given BBC6MinuteEnglishScraper 已初始化
+      And 模擬 BBC 文章頁面內容區域為空白
+      When 呼叫 BBC fetch_article_content
+      Then 回傳 RawArticle 的 content 為空字串
 
   Rule: 爬蟲輸出契約
 
