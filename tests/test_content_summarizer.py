@@ -11,6 +11,7 @@ from pytest_bdd import given, parsers, scenarios, then, when
 
 from persochattai.content.scraper.protocol import RawArticle
 from persochattai.content.service import ContentService
+from tests.helpers import MockStreamAgent
 
 scenarios('features/content_summarizer.feature')
 
@@ -69,14 +70,12 @@ def mock_repo() -> MagicMock:
 
 
 @pytest.fixture
-def mock_agent() -> MagicMock:
-    agent = MagicMock()
-    agent.run = AsyncMock(return_value=VALID_CARD_RESPONSE)
-    return agent
+def mock_agent() -> MockStreamAgent:
+    return MockStreamAgent(return_value=VALID_CARD_RESPONSE)
 
 
 @pytest.fixture
-def service(mock_repo: MagicMock, mock_agent: MagicMock) -> ContentService:
+def service(mock_repo: MagicMock, mock_agent: MockStreamAgent) -> ContentService:
     return ContentService(repository=mock_repo, agent=mock_agent)
 
 
@@ -94,8 +93,8 @@ def service_initialized() -> None:
 
 
 @given('模擬 Claude Agent 回傳有效的摘要結果')
-def mock_valid_response(mock_agent: MagicMock) -> None:
-    mock_agent.run = AsyncMock(return_value=VALID_CARD_RESPONSE)
+def mock_valid_response(mock_agent: MockStreamAgent) -> None:
+    mock_agent.return_value = VALID_CARD_RESPONSE
 
 
 # --- Given: Happy Path ---
@@ -142,38 +141,38 @@ def short_article(text: str, ctx: dict[str, Any]) -> None:
 
 
 @given('模擬 Claude Agent 拋出例外')
-def mock_agent_error(mock_agent: MagicMock) -> None:
-    mock_agent.run = AsyncMock(side_effect=RuntimeError('Agent failed'))
+def mock_agent_error(mock_agent: MockStreamAgent) -> None:
+    mock_agent.side_effect = RuntimeError('Agent failed')
 
 
 @given('模擬 Claude Agent 回傳無法解析的格式')
-def mock_agent_bad_format(mock_agent: MagicMock) -> None:
-    mock_agent.run = AsyncMock(return_value='not a valid json or list')
+def mock_agent_bad_format(mock_agent: MockStreamAgent) -> None:
+    mock_agent.return_value = 'not a valid json or list'
 
 
 # --- Given: Multi-card ---
 
 
 @given(parsers.parse('模擬 Claude Agent 回傳 {count:d} 張卡片的摘要結果'))
-def mock_multi_card(count: int, mock_agent: MagicMock) -> None:
-    mock_agent.run = AsyncMock(return_value=MULTI_CARD_RESPONSE[:count])
+def mock_multi_card(count: int, mock_agent: MockStreamAgent) -> None:
+    mock_agent.return_value = MULTI_CARD_RESPONSE[:count]
 
 
 @given('模擬 Claude Agent 回傳含 keywords 的摘要')
-def mock_with_keywords(mock_agent: MagicMock) -> None:
-    mock_agent.run = AsyncMock(return_value=VALID_CARD_RESPONSE)
+def mock_with_keywords(mock_agent: MockStreamAgent) -> None:
+    mock_agent.return_value = VALID_CARD_RESPONSE
 
 
 @given('模擬 Claude Agent 回傳摘要')
-def mock_with_summary(mock_agent: MagicMock) -> None:
-    mock_agent.run = AsyncMock(return_value=VALID_CARD_RESPONSE)
+def mock_with_summary(mock_agent: MockStreamAgent) -> None:
+    mock_agent.return_value = VALID_CARD_RESPONSE
 
 
 @given(parsers.parse('模擬 Claude Agent 回傳 {count:d} 張卡片但第 {n:d} 張格式錯誤'))
-def mock_partial_error(count: int, n: int, mock_agent: MagicMock) -> None:
-    cards = MULTI_CARD_RESPONSE[:count]
-    cards[n - 1] = {'invalid': 'no title or summary'}  # type: ignore[assignment]
-    mock_agent.run = AsyncMock(return_value=cards)
+def mock_partial_error(count: int, n: int, mock_agent: MockStreamAgent) -> None:
+    cards = list(MULTI_CARD_RESPONSE[:count])
+    cards[n - 1] = {'invalid': 'no title or summary'}
+    mock_agent.return_value = cards
 
 
 # --- When ---

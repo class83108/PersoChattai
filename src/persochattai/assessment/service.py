@@ -5,9 +5,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from persochattai.agent_run import StreamableAgent, agent_run
 from persochattai.assessment.nlp import NlpAnalyzer
 from persochattai.assessment.schemas import (
-    AssessmentAgentProtocol,
     AssessmentRepositoryProtocol,
     NlpMetrics,
     SnapshotRepositoryProtocol,
@@ -26,7 +26,7 @@ class AssessmentService:
         assessment_repo: AssessmentRepositoryProtocol,
         vocabulary_repo: VocabularyRepositoryProtocol,
         snapshot_repo: SnapshotRepositoryProtocol,
-        agent: AssessmentAgentProtocol,
+        agent: StreamableAgent,
     ) -> None:
         self._assessment_repo = assessment_repo
         self._vocabulary_repo = vocabulary_repo
@@ -82,8 +82,8 @@ class AssessmentService:
         self, transcript: str, metrics: NlpMetrics
     ) -> dict[str, Any] | None:
         try:
-            result = await self._agent.run(transcript)
-            if not isinstance(result, dict):
+            result = await agent_run(self._agent, transcript)
+            if 'raw' in result:
                 logger.error('Claude Agent 回傳非預期格式')
                 return None
             return result
