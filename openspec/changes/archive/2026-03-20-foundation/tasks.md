@@ -27,6 +27,6 @@
 
 ## 5. 驗證
 
-- [ ] 5.1 撰寫 .feature 檔（環境配置、DB 連線、app 啟動、router 掛載）
-- [ ] 5.2 撰寫 pytest-bdd step definitions
-- [ ] 5.3 確認 ruff check + ruff format + pyright 全部通過
+- [x] 5.1 撰寫 .feature 檔（環境配置、DB 連線、app 啟動、router 掛載）
+- [x] 5.2 撰寫 pytest-bdd step definitions
+- [x] 5.3 確認 ruff check + ruff format + pyright 全部通過
