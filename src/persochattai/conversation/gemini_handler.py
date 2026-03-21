@@ -29,6 +29,8 @@ class GeminiHandler(AsyncStreamHandler):
         self,
         *,
         on_disconnect: Any | None = None,
+        system_instruction: str = '',
+        model: str = 'gemini-2.0-flash-exp',
     ) -> None:
         super().__init__(
             expected_layout='mono',
@@ -36,6 +38,8 @@ class GeminiHandler(AsyncStreamHandler):
             input_sample_rate=16000,
         )
         self._on_disconnect = on_disconnect
+        self._system_instruction = system_instruction
+        self._model = model
         self._gemini_client: Any | None = None
         self._session_ready = False
         self._ended = False
@@ -59,7 +63,11 @@ class GeminiHandler(AsyncStreamHandler):
         return await wait_for_item(self.output_queue)
 
     def copy(self) -> GeminiHandler:
-        return GeminiHandler(on_disconnect=self._on_disconnect)
+        return GeminiHandler(
+            on_disconnect=self._on_disconnect,
+            system_instruction=self._system_instruction,
+            model=self._model,
+        )
 
     async def start_up(self) -> None:
         if self._gemini_client is None:
@@ -67,20 +75,24 @@ class GeminiHandler(AsyncStreamHandler):
             raise RuntimeError(msg)
 
         config = self.build_live_connect_config(
-            system_instruction=getattr(self, '_system_instruction', ''),
+            system_instruction=self._system_instruction,
         )
 
         try:
-            async with self._gemini_client.aio.live.connect(
-                model='gemini-2.0-flash-exp', config=config
-            ) as session:
-                self._session_ready = True
-                async for audio in session.start_stream(
-                    stream=self._audio_stream(), mime_type='audio/pcm'
-                ):
-                    if audio.data:
-                        array = np.frombuffer(audio.data, dtype=np.int16)
-                        self.output_queue.put_nowait((self.output_sample_rate, array))
+            session_cm = self._gemini_client.aio.live.connect(model=self._model, config=config)
+            session = await session_cm.__aenter__()
+        except Exception as e:
+            await self._handle_stream_error(e)
+            raise
+
+        try:
+            self._session_ready = True
+            async for audio in session.start_stream(
+                stream=self._audio_stream(), mime_type='audio/pcm'
+            ):
+                if audio.data:
+                    array = np.frombuffer(audio.data, dtype=np.int16)
+                    self.output_queue.put_nowait((self.output_sample_rate, array))
         except Exception as e:
             await self._handle_stream_error(e)
 
