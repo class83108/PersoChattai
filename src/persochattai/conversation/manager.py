@@ -8,6 +8,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from persochattai.assessment.schemas import AssessmentServiceProtocol
 from persochattai.conversation.schemas import (
     VALID_TRANSITIONS,
     ConversationRepositoryProtocol,
@@ -30,10 +31,12 @@ class ConversationManager:
         repository: ConversationRepositoryProtocol,
         scenario_designer: ScenarioDesigner,
         gemini_client: Any,
+        assessment_service: AssessmentServiceProtocol | None = None,
     ) -> None:
         self._repository = repository
         self._scenario_designer = scenario_designer
         self._gemini_client = gemini_client
+        self._assessment_service = assessment_service
         self._conversations: dict[str, dict[str, Any]] = {}
         self._warning_sent: dict[str, bool] = {}
         self._silence_timers: dict[str, float] = {}
@@ -95,12 +98,22 @@ class ConversationManager:
             msg = f'Cannot end conversation in {conv["status"]} state'
             raise ValueError(msg)
 
+        transcript_text = self._extract_transcript_text(conv['transcript'])
+
+        if not transcript_text:
+            self.transition_state(conversation_id, S.CANCELLED)
+            await self._repository.update_status(conversation_id, S.CANCELLED)
+            return self._build_response(conversation_id)
+
         try:
             await self._finalize_conversation(conversation_id, conv['transcript'], S.ASSESSING)
         except Exception:
             logger.error('Transcript 儲存失敗，對話標記為 failed: %s', conversation_id)
             self.transition_state(conversation_id, S.FAILED)
             await self._repository.update_status(conversation_id, S.FAILED)
+            return self._build_response(conversation_id)
+
+        await self._run_assessment(conversation_id, conv['user_id'], transcript_text)
 
         return self._build_response(conversation_id)
 
@@ -235,6 +248,25 @@ class ConversationManager:
                 if attempt < len(_TRANSCRIPT_RETRY_DELAYS):
                     await asyncio.sleep(_TRANSCRIPT_RETRY_DELAYS[attempt])
         raise last_error  # type: ignore[misc]
+
+    @staticmethod
+    def _extract_transcript_text(transcript: list[dict[str, Any]]) -> str:
+        text = ' '.join(t.get('text', '') for t in transcript if t.get('text'))
+        return text.strip()
+
+    async def _run_assessment(self, conversation_id: str, user_id: str, transcript: str) -> None:
+        if self._assessment_service:
+            try:
+                await self._assessment_service.evaluate(
+                    conversation_id=conversation_id,
+                    user_id=user_id,
+                    transcript=transcript,
+                )
+            except Exception:
+                logger.error('評估 pipeline 失敗: %s', conversation_id)
+
+        self.transition_state(conversation_id, S.COMPLETED)
+        await self._repository.update_status(conversation_id, S.COMPLETED)
 
     async def _on_time_limit_warning(self, conversation_id: str) -> None:
         self._warning_sent[conversation_id] = True
