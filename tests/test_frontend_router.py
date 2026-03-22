@@ -185,6 +185,37 @@ class TestMaterialsPartials:
             )
             assert resp.status_code == 200
 
+    def test_trigger_crawl_success(self, client: TestClient) -> None:
+        """爬蟲觸發成功時顯示統計結果。"""
+        mock_data = {
+            'started_at': '2026-03-22T08:00:00Z',
+            'finished_at': '2026-03-22T08:01:00Z',
+            'sources': [
+                {'source_type': 'podcast_bbc', 'new_count': 2, 'skipped_count': 3, 'failed_count': 0},
+            ],
+            'total_new': 2,
+            'total_skipped': 3,
+            'total_failed': 0,
+        }
+        with _mock_api(method='post', json=mock_data):
+            resp = client.post('/materials/trigger-crawl')
+            assert resp.status_code == 200
+            assert '爬取完成' in resp.text
+            assert '新增 2' in resp.text
+
+    def test_trigger_crawl_409_busy(self, client: TestClient) -> None:
+        """爬蟲執行中時顯示錯誤訊息。"""
+        with _mock_api(method='post', json={'detail': '爬蟲正在執行中，請稍後再試'}, status_code=409):
+            resp = client.post('/materials/trigger-crawl')
+            assert resp.status_code == 200
+            assert '爬蟲正在執行中' in resp.text
+
+    def test_trigger_crawl_connection_error(self, client: TestClient) -> None:
+        """API 連線失敗時 graceful degradation。"""
+        resp = client.post('/materials/trigger-crawl')
+        assert resp.status_code == 200
+        assert '爬取失敗' in resp.text
+
 
 # --- Roleplay partials ---
 

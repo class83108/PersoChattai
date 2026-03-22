@@ -54,6 +54,20 @@
     </div>
   </div>
 
+  {# ── Crawl Trigger ── #}
+  <div class="flex items-center justify-between mb-6">
+    <button class="btn btn-outline btn-sm md:btn-md"
+            hx-post="/materials/trigger-crawl"
+            hx-target="#crawl-result"
+            hx-swap="innerHTML"
+            hx-indicator="#crawl-spinner"
+            hx-confirm="確定要立即爬取最新素材嗎？">
+      <span id="crawl-spinner" class="loading loading-spinner loading-xs htmx-indicator"></span>
+      重新爬取素材
+    </button>
+    <div id="crawl-result" class="flex-1 ml-4"></div>
+  </div>
+
   {# ── Divider ── #}
   <div class="divider my-8">新增素材</div>
 
