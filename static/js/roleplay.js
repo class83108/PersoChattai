@@ -51,27 +51,26 @@ function switchSource(type, tabEl) {
   }
 }
 
-function pickCard(cardId, btnEl) {
+function pickCard(btnEl) {
+  const cardId = btnEl.dataset.cardId;
+  const title = btnEl.dataset.cardTitle;
+  const meta = btnEl.dataset.cardMeta;
+  const summary = btnEl.dataset.cardSummary;
+
   document.getElementById('source-ref').value = cardId;
 
-  // Highlight selected
-  document.querySelectorAll('#card-picker-area button').forEach((b) => {
-    b.classList.remove('bg-primary/10', 'ring-1', 'ring-primary');
-  });
-  btnEl.classList.add('bg-primary/10', 'ring-1', 'ring-primary');
-
-  // Show selected indicator
-  const title = btnEl.querySelector('.font-medium').textContent;
+  // Hide picker list, show selected card
+  document.getElementById('card-picker-area').classList.add('hidden');
   document.getElementById('selected-card-title').textContent = title;
+  document.getElementById('selected-card-meta').textContent = meta;
+  document.getElementById('selected-card-summary').textContent = summary;
   document.getElementById('selected-card').classList.remove('hidden');
 }
 
 function clearCardSelection() {
   document.getElementById('source-ref').value = '';
   document.getElementById('selected-card').classList.add('hidden');
-  document.querySelectorAll('#card-picker-area button').forEach((b) => {
-    b.classList.remove('bg-primary/10', 'ring-1', 'ring-primary');
-  });
+  document.getElementById('card-picker-area').classList.remove('hidden');
 }
 
 // --- Conversation Lifecycle ---

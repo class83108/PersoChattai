@@ -4,7 +4,11 @@
   {% for card in cards %}
   <button type="button"
           class="w-full text-left p-2 rounded-lg hover:bg-base-300 transition-colors flex items-center gap-2"
-          onclick="pickCard('{{ card.id }}', this)">
+          data-card-id="{{ card.id }}"
+          data-card-title="{{ card.title }}"
+          data-card-meta="{{ card.source_type }}{% if card.difficulty_level %} · {{ card.difficulty_level }}{% endif %}"
+          data-card-summary="{{ card.summary[:80] if card.summary else '' }}"
+          onclick="pickCard(this)">
     <div class="flex-1 min-w-0">
       <div class="text-sm font-medium truncate">{{ card.title }}</div>
       <div class="text-xs text-base-content/50">{{ card.source_type }}{% if card.difficulty_level %} · {{ card.difficulty_level }}{% endif %}</div>

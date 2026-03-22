@@ -22,11 +22,11 @@ from persochattai.assessment.service import AssessmentService
 from persochattai.config import Settings
 from persochattai.content.router import router as content_router
 from persochattai.content.scheduler import ContentScheduler
+from persochattai.content.service import ContentService
 from persochattai.conversation.manager import ConversationManager
 from persochattai.conversation.router import router as conversation_router
 from persochattai.conversation.stream import mount_conversation_stream
 from persochattai.database.engine import dispose_engine, get_session_factory, init_engine
-from persochattai.content.service import ContentService
 from persochattai.database.session_wrapper import (
     AssessmentRepositoryWrapper,
     CardRepositoryWrapper,
