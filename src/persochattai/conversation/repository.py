@@ -1,20 +1,22 @@
-"""Conversation DB repository。"""
+"""Conversation DB repository — SQLAlchemy 實作。"""
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime
 from typing import Any
 
-import asyncpg
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from persochattai.database.tables import ConversationTable
 
 logger = logging.getLogger(__name__)
 
 
 class ConversationRepository:
-    def __init__(self, pool: asyncpg.Pool) -> None:
-        self._pool = pool
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
 
     async def create(
         self,
@@ -24,60 +26,79 @@ class ConversationRepository:
         source_ref: str,
         status: str = 'preparing',
     ) -> None:
-        async with self._pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO conversations (id, user_id, source_type, source_ref, status, started_at)
-                VALUES ($1, $2, $3, $4, $5, NOW())
-                """,
-                conversation_id,
-                user_id,
-                source_type,
-                source_ref,
-                status,
-            )
+        row = ConversationTable(
+            id=conversation_id,
+            user_id=user_id,
+            conversation_type=source_type,
+            source_type=source_type,
+            source_ref=source_ref,
+            status=status,
+        )
+        self._session.add(row)
+        await self._session.flush()
 
     async def update_status(self, conversation_id: str, status: str) -> None:
-        async with self._pool.acquire() as conn:
-            await conn.execute(
-                'UPDATE conversations SET status = $1 WHERE id = $2',
-                status,
-                conversation_id,
-            )
+        stmt = (
+            update(ConversationTable)
+            .where(ConversationTable.id == conversation_id)
+            .values(status=status)
+        )
+        await self._session.execute(stmt)
+        await self._session.flush()
 
     async def save_transcript(self, conversation_id: str, transcript: list[dict[str, Any]]) -> None:
-        async with self._pool.acquire() as conn:
-            await conn.execute(
-                'UPDATE conversations SET transcript = $1 WHERE id = $2',
-                json.dumps(transcript),
-                conversation_id,
-            )
+        stmt = (
+            update(ConversationTable)
+            .where(ConversationTable.id == conversation_id)
+            .values(transcript=transcript)
+        )
+        await self._session.execute(stmt)
+        await self._session.flush()
 
     async def update_ended_at(self, conversation_id: str, ended_at: datetime) -> None:
-        async with self._pool.acquire() as conn:
-            await conn.execute(
-                'UPDATE conversations SET ended_at = $1 WHERE id = $2',
-                ended_at,
-                conversation_id,
-            )
+        stmt = (
+            update(ConversationTable)
+            .where(ConversationTable.id == conversation_id)
+            .values(ended_at=ended_at)
+        )
+        await self._session.execute(stmt)
+        await self._session.flush()
 
     async def get_by_id(self, conversation_id: str) -> dict[str, Any] | None:
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(
-                'SELECT * FROM conversations WHERE id = $1',
-                conversation_id,
-            )
-            return dict(row) if row else None
+        stmt = select(ConversationTable).where(ConversationTable.id == conversation_id)
+        result = await self._session.execute(stmt)
+        row = result.scalar_one_or_none()
+        return _row_to_dict(row) if row else None
 
     async def list_by_user(self, user_id: str) -> list[dict[str, Any]]:
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT id, status, started_at, ended_at, source_type
-                FROM conversations
-                WHERE user_id = $1
-                ORDER BY started_at DESC
-                """,
-                user_id,
-            )
-            return [dict(row) for row in rows]
+        stmt = (
+            select(ConversationTable)
+            .where(ConversationTable.user_id == user_id)
+            .order_by(ConversationTable.started_at.desc())
+        )
+        result = await self._session.execute(stmt)
+        return [
+            {
+                'id': row.id,
+                'status': row.status,
+                'started_at': row.started_at,
+                'ended_at': row.ended_at,
+                'source_type': row.source_type,
+            }
+            for row in result.scalars().all()
+        ]
+
+
+def _row_to_dict(row: ConversationTable) -> dict[str, Any]:
+    return {
+        'id': row.id,
+        'user_id': row.user_id,
+        'conversation_type': row.conversation_type,
+        'source_type': row.source_type,
+        'source_ref': row.source_ref,
+        'system_instruction': row.system_instruction,
+        'started_at': row.started_at,
+        'ended_at': row.ended_at,
+        'transcript': row.transcript,
+        'status': row.status,
+    }

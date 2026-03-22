@@ -10,8 +10,12 @@ from unittest.mock import AsyncMock
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
+from persochattai.assessment.nlp import NlpAnalyzer
 from persochattai.assessment.service import AssessmentService
 from tests.helpers import MockStreamAgent
+
+_spacy_available = NlpAnalyzer()._nlp is not None
+pytestmark = pytest.mark.skipif(not _spacy_available, reason='spacy en_core_web_sm 未安裝')
 
 scenarios('features/transcript_evaluation.feature')
 

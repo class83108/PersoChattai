@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager
+import uuid
+from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
+from sqlalchemy.exc import IntegrityError
+
+from tests.helpers import make_mock_session
 
 scenarios('features/model_config_repository.feature')
 
@@ -20,82 +24,48 @@ def _run(coro: Any) -> Any:
 # --- Helpers ---
 
 
-def _make_mock_pool() -> tuple[AsyncMock, AsyncMock]:
-    """建立支援 async with pool.acquire() as conn 的 mock。"""
-    pool = AsyncMock()
-    conn = AsyncMock()
-    conn.fetchrow = AsyncMock(return_value=None)
-    conn.fetch = AsyncMock(return_value=[])
-    conn.execute = AsyncMock()
-    conn.fetchval = AsyncMock(return_value=0)
-
-    @asynccontextmanager
-    async def _transaction():  # type: ignore[no-untyped-def]
-        yield
-
-    conn.transaction = _transaction
-
-    @asynccontextmanager
-    async def _acquire():  # type: ignore[no-untyped-def]
-        yield conn
-
-    pool.acquire = _acquire
-    return pool, conn
-
-
-def _make_claude_model_row(
+def _make_model_config_table_mock(
+    provider: str = 'claude',
     model_id: str = 'claude-sonnet-4-20250514',
     display_name: str = 'Claude Sonnet 4',
     is_active: bool = True,
-) -> dict[str, Any]:
-    import json
-    from datetime import UTC, datetime
-    from uuid import uuid4
-
-    return {
-        'id': str(uuid4()),
-        'provider': 'claude',
-        'model_id': model_id,
-        'display_name': display_name,
-        'is_active': is_active,
-        'pricing': json.dumps(
-            {'input': 3.0, 'output': 15.0, 'cache_write': 3.75, 'cache_read': 0.30}
-        ),
-        'created_at': datetime.now(tz=UTC),
-        'updated_at': datetime.now(tz=UTC),
-    }
+    pricing: dict | None = None,
+) -> MagicMock:
+    row = MagicMock()
+    row.id = uuid.uuid4()
+    row.provider = provider
+    row.model_id = model_id
+    row.display_name = display_name
+    row.is_active = is_active
+    row.pricing = pricing or {'input': 3.0, 'output': 15.0, 'cache_write': 3.75, 'cache_read': 0.30}
+    row.created_at = datetime.now(tz=UTC)
+    row.updated_at = datetime.now(tz=UTC)
+    return row
 
 
-def _make_gemini_model_row(
+def _make_gemini_row(
     model_id: str = 'gemini-2.0-flash',
     display_name: str = 'Gemini 2.0 Flash',
     is_active: bool = True,
-) -> dict[str, Any]:
-    import json
-    from datetime import UTC, datetime
-    from uuid import uuid4
-
-    return {
-        'id': str(uuid4()),
-        'provider': 'gemini',
-        'model_id': model_id,
-        'display_name': display_name,
-        'is_active': is_active,
-        'pricing': json.dumps(
-            {'text_input': 0.10, 'audio_input': 0.70, 'output': 0.40, 'tokens_per_sec': 25}
-        ),
-        'created_at': datetime.now(tz=UTC),
-        'updated_at': datetime.now(tz=UTC),
-    }
+) -> MagicMock:
+    return _make_model_config_table_mock(
+        provider='gemini',
+        model_id=model_id,
+        display_name=display_name,
+        is_active=is_active,
+        pricing={'text_input': 0.10, 'audio_input': 0.70, 'output': 0.40, 'tokens_per_sec': 25},
+    )
 
 
-def _default_model_rows() -> list[dict[str, Any]]:
+def _default_rows() -> list[MagicMock]:
     return [
-        _make_claude_model_row('claude-sonnet-4-20250514', 'Claude Sonnet 4', is_active=True),
-        _make_claude_model_row('claude-opus-4-20250514', 'Claude Opus 4', is_active=False),
-        _make_claude_model_row('claude-haiku-4-20250514', 'Claude Haiku 4', is_active=False),
-        _make_gemini_model_row('gemini-2.0-flash', 'Gemini 2.0 Flash', is_active=True),
-        _make_gemini_model_row('gemini-2.5-flash', 'Gemini 2.5 Flash', is_active=False),
+        _make_model_config_table_mock(
+            'claude', 'claude-sonnet-4-20250514', 'Claude Sonnet 4', True
+        ),
+        _make_model_config_table_mock('claude', 'claude-opus-4-20250514', 'Claude Opus 4', False),
+        _make_model_config_table_mock('claude', 'claude-haiku-4-20250514', 'Claude Haiku 4', False),
+        _make_gemini_row('gemini-2.0-flash', 'Gemini 2.0 Flash', True),
+        _make_gemini_row('gemini-2.5-flash', 'Gemini 2.5 Flash', False),
     ]
 
 
@@ -103,25 +73,15 @@ def _default_model_rows() -> list[dict[str, Any]]:
 
 
 @pytest.fixture
-def mock_pool_and_conn() -> tuple[AsyncMock, AsyncMock]:
-    return _make_mock_pool()
+def mock_session() -> AsyncMock:
+    return make_mock_session()
 
 
 @pytest.fixture
-def mock_pool(mock_pool_and_conn: tuple[AsyncMock, AsyncMock]) -> AsyncMock:
-    return mock_pool_and_conn[0]
-
-
-@pytest.fixture
-def mock_conn(mock_pool_and_conn: tuple[AsyncMock, AsyncMock]) -> AsyncMock:
-    return mock_pool_and_conn[1]
-
-
-@pytest.fixture
-def repo(mock_pool: AsyncMock) -> Any:
+def repo(mock_session: AsyncMock) -> Any:
     from persochattai.usage.model_config_repository import ModelConfigRepository
 
-    return ModelConfigRepository(mock_pool)
+    return ModelConfigRepository(mock_session)
 
 
 @pytest.fixture
@@ -129,64 +89,89 @@ def result() -> dict[str, Any]:
     return {}
 
 
+# --- Helpers to configure mock_session.execute results ---
+
+
+def _setup_scalar_result(mock_session: AsyncMock, value: Any) -> None:
+    """Configure session.execute to return a result whose .scalar() returns value."""
+    mock_result = MagicMock()
+    mock_result.scalar.return_value = value
+    mock_session.execute = AsyncMock(return_value=mock_result)
+
+
+def _setup_scalars_result(mock_session: AsyncMock, rows: list[Any]) -> None:
+    """Configure session.execute to return a result whose .scalars().all() returns rows."""
+    mock_scalars = MagicMock()
+    mock_scalars.all.return_value = rows
+    mock_result = MagicMock()
+    mock_result.scalars.return_value = mock_scalars
+    mock_session.execute = AsyncMock(return_value=mock_result)
+
+
+def _setup_scalar_one_or_none(mock_session: AsyncMock, value: Any) -> None:
+    """Configure session.execute to return a result whose .scalar_one_or_none() returns value."""
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = value
+    mock_session.execute = AsyncMock(return_value=mock_result)
+
+
 # --- Rule: 啟動時 seed 預設模型 ---
 
 
 @given('一個空的 model_config table')
-def given_empty_table(mock_conn: AsyncMock) -> None:
-    mock_conn.fetchval = AsyncMock(return_value=0)
+def given_empty_table(mock_session: AsyncMock) -> None:
+    _setup_scalar_result(mock_session, 0)
 
 
 @when('執行 seed 邏輯', target_fixture='result')
-def when_seed(repo: Any, mock_conn: AsyncMock) -> dict[str, Any]:
+def when_seed(repo: Any, mock_session: AsyncMock) -> dict[str, Any]:
     _run(repo.seed_defaults())
-    return {'conn': mock_conn}
+    return {'session': mock_session}
 
 
 @then(parsers.parse('DB 有 {n:d} 筆 Claude 模型（sonnet, opus, haiku）'))
 def then_claude_models(result: dict[str, Any], n: int) -> None:
-    conn = result['conn']
-    calls = conn.fetchrow.call_args_list
-    claude_inserts = [c for c in calls if 'claude' in str(c)]
-    assert len(claude_inserts) == n
+    session = result['session']
+    add_calls = session.add.call_args_list
+    claude_adds = [c for c in add_calls if getattr(c[0][0], 'provider', None) == 'claude']
+    assert len(claude_adds) == n
 
 
 @then(parsers.parse('DB 有 {n:d} 筆 Gemini 模型（2.0-flash, 2.5-flash）'))
 def then_gemini_models(result: dict[str, Any], n: int) -> None:
-    conn = result['conn']
-    calls = conn.fetchrow.call_args_list
-    gemini_inserts = [c for c in calls if 'gemini' in str(c)]
-    assert len(gemini_inserts) == n
+    session = result['session']
+    add_calls = session.add.call_args_list
+    gemini_adds = [c for c in add_calls if getattr(c[0][0], 'provider', None) == 'gemini']
+    assert len(gemini_adds) == n
 
 
 @then('每個 provider 各有一個 is_active 為 TRUE 的模型')
 def then_one_active_per_provider(result: dict[str, Any]) -> None:
-    conn = result['conn']
-    calls = conn.fetchrow.call_args_list
-    active_calls = [c for c in calls if 'True' in str(c) or 'true' in str(c).lower()]
-    # 至少 2 個 active（一個 claude、一個 gemini）
-    assert len(active_calls) >= 2
+    session = result['session']
+    add_calls = session.add.call_args_list
+    active_adds = [c for c in add_calls if getattr(c[0][0], 'is_active', False)]
+    providers = {getattr(c[0][0], 'provider', None) for c in active_adds}
+    assert 'claude' in providers
+    assert 'gemini' in providers
 
 
 @given(parsers.parse('model_config table 已有 {n:d} 筆 Claude 模型'))
-def given_existing_models(mock_conn: AsyncMock, n: int) -> None:
-    mock_conn.fetchval = AsyncMock(return_value=n)
+def given_existing_models(mock_session: AsyncMock, n: int) -> None:
+    _setup_scalar_result(mock_session, n)
 
 
 @then(parsers.parse('DB 仍然只有 {n:d} 筆 Claude 模型'))
 def then_no_extra_models(result: dict[str, Any], n: int) -> None:
-    conn = result['conn']
-    # seed 不應新增任何 INSERT
-    assert conn.fetchrow.call_count == 0
+    session = result['session']
+    assert session.add.call_count == 0
 
 
 # --- Rule: CRUD 正常操作 ---
 
 
 @given('DB 有預設的 5 筆模型配置')
-def given_default_models(mock_conn: AsyncMock) -> None:
-    mock_conn.fetch = AsyncMock(return_value=_default_model_rows())
-    mock_conn.fetchval = AsyncMock(return_value=5)
+def given_default_models(mock_session: AsyncMock) -> None:
+    _setup_scalars_result(mock_session, _default_rows())
 
 
 @when('呼叫 list_models()', target_fixture='result')
@@ -201,9 +186,11 @@ def then_n_models(result: dict[str, Any], n: int) -> None:
 
 
 @when(parsers.parse('呼叫 list_models(provider="{provider}")'), target_fixture='result')
-def when_list_models_by_provider(repo: Any, mock_conn: AsyncMock, provider: str) -> dict[str, Any]:
-    filtered = [r for r in _default_model_rows() if r['provider'] == provider]
-    mock_conn.fetch = AsyncMock(return_value=filtered)
+def when_list_models_by_provider(
+    repo: Any, mock_session: AsyncMock, provider: str
+) -> dict[str, Any]:
+    filtered = [r for r in _default_rows() if r.provider == provider]
+    _setup_scalars_result(mock_session, filtered)
     models = _run(repo.list_models(provider=provider))
     return {'models': models}
 
@@ -215,11 +202,9 @@ def then_all_provider(result: dict[str, Any], provider: str) -> None:
 
 
 @when(parsers.parse('呼叫 get_active_model(provider="{provider}")'), target_fixture='result')
-def when_get_active(repo: Any, mock_conn: AsyncMock, provider: str) -> dict[str, Any]:
-    active_row = next(
-        r for r in _default_model_rows() if r['provider'] == provider and r['is_active']
-    )
-    mock_conn.fetchrow = AsyncMock(return_value=active_row)
+def when_get_active(repo: Any, mock_session: AsyncMock, provider: str) -> dict[str, Any]:
+    active_row = next(r for r in _default_rows() if r.provider == provider and r.is_active)
+    _setup_scalar_one_or_none(mock_session, active_row)
     model = _run(repo.get_active_model(provider=provider))
     return {'model': model}
 
@@ -231,7 +216,7 @@ def then_active_claude(result: dict[str, Any]) -> None:
 
 
 @when('呼叫 create_model 帶入一筆新的 Gemini 模型', target_fixture='result')
-def when_create_model(repo: Any, mock_conn: AsyncMock) -> dict[str, Any]:
+def when_create_model(repo: Any, mock_session: AsyncMock) -> dict[str, Any]:
     from persochattai.usage.schemas import ModelConfig
 
     new_model = ModelConfig(
@@ -241,18 +226,14 @@ def when_create_model(repo: Any, mock_conn: AsyncMock) -> dict[str, Any]:
         is_active=False,
         pricing={'text_input': 1.25, 'audio_input': 2.50, 'output': 5.00, 'tokens_per_sec': 25},
     )
-    row = _make_gemini_model_row('gemini-2.5-pro', 'Gemini 2.5 Pro', is_active=False)
-    mock_conn.fetchrow = AsyncMock(return_value=row)
     created = _run(repo.create_model(new_model))
-    return {'model': created, 'conn': mock_conn}
+    return {'model': created, 'session': mock_session}
 
 
 @then('DB 多一筆模型紀錄')
 def then_model_inserted(result: dict[str, Any]) -> None:
-    conn = result['conn']
-    conn.fetchrow.assert_called_once()
-    sql = conn.fetchrow.call_args[0][0]
-    assert 'INSERT' in sql.upper()
+    session = result['session']
+    session.add.assert_called_once()
 
 
 @then('回傳的 ModelConfig 包含完整欄位')
@@ -264,26 +245,18 @@ def then_model_complete(result: dict[str, Any]) -> None:
 
 
 @when(parsers.parse('呼叫 update_model 更新 "{model_id}" 的 pricing'), target_fixture='result')
-def when_update_model(repo: Any, mock_conn: AsyncMock, model_id: str) -> dict[str, Any]:
-    import json
-    from datetime import UTC, datetime
-
+def when_update_model(repo: Any, mock_session: AsyncMock, model_id: str) -> dict[str, Any]:
     new_pricing = {'text_input': 0.20, 'audio_input': 1.00, 'output': 0.80, 'tokens_per_sec': 25}
-    updated_row = _make_gemini_model_row(model_id)
-    updated_row['pricing'] = json.dumps(new_pricing)
-    updated_row['updated_at'] = datetime.now(tz=UTC)
-    mock_conn.fetchrow = AsyncMock(return_value=updated_row)
+    existing = _make_gemini_row(model_id)
+    _setup_scalar_one_or_none(mock_session, existing)
     model = _run(repo.update_model(model_id, {'pricing': new_pricing}))
-    return {'model': model, 'conn': mock_conn}
+    return {'model': model, 'session': mock_session}
 
 
 @then('DB 中該模型的 pricing 已更新')
 def then_pricing_updated(result: dict[str, Any]) -> None:
-    conn = result['conn']
-    # fetchrow is called twice: SELECT (exists check) + UPDATE RETURNING
-    calls = conn.fetchrow.call_args_list
-    update_calls = [c for c in calls if 'UPDATE' in c[0][0].upper()]
-    assert len(update_calls) == 1
+    session = result['session']
+    session.flush.assert_called()
 
 
 @then('updated_at 時間已更新')
@@ -292,39 +265,38 @@ def then_updated_at(result: dict[str, Any]) -> None:
 
 
 @given(parsers.parse('"{model_id}" 不是 active 模型'))
-def given_not_active(mock_conn: AsyncMock, model_id: str) -> None:
-    mock_conn.fetchrow = AsyncMock(return_value={'is_active': False, 'model_id': model_id})
+def given_not_active(mock_session: AsyncMock, model_id: str) -> None:
+    row = _make_model_config_table_mock(model_id=model_id, is_active=False)
+    _setup_scalar_one_or_none(mock_session, row)
 
 
 @when(parsers.parse('呼叫 delete_model("{model_id}")'), target_fixture='result')
-def when_delete_model(repo: Any, mock_conn: AsyncMock, model_id: str) -> dict[str, Any]:
-    # mock_conn.fetchrow may already be set by given step (active or not active)
-    # If not set by given, default to non-active
-    current = mock_conn.fetchrow
-    if not hasattr(current, '_mock_return_value') or current.return_value is None:
-        mock_conn.fetchrow = AsyncMock(return_value={'is_active': False, 'model_id': model_id})
-    mock_conn.execute = AsyncMock()
+def when_delete_model(repo: Any, mock_session: AsyncMock, model_id: str) -> dict[str, Any]:
+    current_scalar = mock_session.execute.return_value
+    if current_scalar is None or not hasattr(current_scalar, 'scalar_one_or_none'):
+        row = _make_model_config_table_mock(model_id=model_id, is_active=False)
+        _setup_scalar_one_or_none(mock_session, row)
     try:
         _run(repo.delete_model(model_id))
-        return {'conn': mock_conn}
+        return {'session': mock_session}
     except Exception as e:
         return {'error': e}
 
 
 @then(parsers.parse('DB 剩 {n:d} 筆模型'))
 def then_model_deleted(result: dict[str, Any], n: int) -> None:
-    conn = result['conn']
-    conn.execute.assert_called_once()
-    sql = conn.execute.call_args[0][0]
-    assert 'DELETE' in sql.upper()
+    session = result['session']
+    # execute is called for SELECT + DELETE
+    assert session.execute.call_count >= 2
 
 
 # --- Rule: 切換 active model ---
 
 
 @given(parsers.parse('Claude 的 active model 是 "{model_id}"'))
-def given_claude_active(mock_conn: AsyncMock, model_id: str) -> None:
-    mock_conn.fetchrow = AsyncMock(return_value=_make_claude_model_row(model_id, is_active=True))
+def given_claude_active(mock_session: AsyncMock, model_id: str) -> None:
+    row = _make_model_config_table_mock(model_id=model_id, is_active=True)
+    _setup_scalar_one_or_none(mock_session, row)
 
 
 @when(
@@ -332,44 +304,37 @@ def given_claude_active(mock_conn: AsyncMock, model_id: str) -> None:
     target_fixture='result',
 )
 def when_set_active(
-    repo: Any, mock_conn: AsyncMock, provider: str, model_id: str
+    repo: Any, mock_session: AsyncMock, provider: str, model_id: str
 ) -> dict[str, Any]:
-    # For nonexistent models, fetchrow returns None
     if 'nonexistent' in model_id or 'invalid' in model_id:
-        mock_conn.fetchrow = AsyncMock(return_value=None)
+        _setup_scalar_one_or_none(mock_session, None)
     elif provider == 'claude':
-        mock_conn.fetchrow = AsyncMock(
-            return_value=_make_claude_model_row(model_id, is_active=False)
-        )
+        row = _make_model_config_table_mock(model_id=model_id, is_active=False)
+        _setup_scalar_one_or_none(mock_session, row)
     else:
-        mock_conn.fetchrow = AsyncMock(
-            return_value=_make_gemini_model_row(model_id, is_active=False)
-        )
-    mock_conn.execute = AsyncMock()
+        row = _make_gemini_row(model_id=model_id, is_active=False)
+        _setup_scalar_one_or_none(mock_session, row)
     try:
         _run(repo.set_active_model(provider=provider, model_id=model_id))
-        return {'conn': mock_conn, 'provider': provider, 'model_id': model_id}
+        return {'session': mock_session, 'provider': provider, 'model_id': model_id}
     except Exception as e:
         return {'error': e}
 
 
 @then(parsers.parse('"{model_id}" 的 is_active 為 TRUE'))
 def then_is_active_true(result: dict[str, Any], model_id: str) -> None:
-    conn = result['conn']
-    # Verify UPDATE calls were made
-    assert conn.execute.call_count >= 1
+    session = result['session']
+    assert session.execute.call_count >= 1
 
 
 @then(parsers.parse('"{model_id}" 的 is_active 為 FALSE'))
 def then_is_active_false(result: dict[str, Any], model_id: str) -> None:
-    # The set_active_model should deactivate old and activate new
-    conn = result['conn']
-    assert conn.execute.call_count >= 1
+    session = result['session']
+    assert session.execute.call_count >= 1
 
 
 @then(parsers.parse('"{model_id}" 的 is_active 仍為 TRUE'))
 def then_is_active_still_true(result: dict[str, Any], model_id: str) -> None:
-    # Idempotent: still works without error
     assert result['model_id'] == model_id
 
 
@@ -380,12 +345,10 @@ def then_is_active_still_true(result: dict[str, Any], model_id: str) -> None:
     parsers.parse('呼叫 create_model 帶入已存在的 model_id "{model_id}"'),
     target_fixture='result',
 )
-def when_create_duplicate(repo: Any, mock_conn: AsyncMock, model_id: str) -> dict[str, Any]:
-    import asyncpg
-
+def when_create_duplicate(repo: Any, mock_session: AsyncMock, model_id: str) -> dict[str, Any]:
     from persochattai.usage.schemas import ModelConfig
 
-    mock_conn.fetchrow = AsyncMock(side_effect=asyncpg.UniqueViolationError(''))
+    mock_session.flush = AsyncMock(side_effect=IntegrityError('', {}, Exception()))
     model = ModelConfig(
         provider='claude',
         model_id=model_id,
@@ -408,8 +371,9 @@ def then_duplicate_error(result: dict[str, Any]) -> None:
 
 
 @given(parsers.parse('"{model_id}" 是 active 模型'))
-def given_is_active(mock_conn: AsyncMock, model_id: str) -> None:
-    mock_conn.fetchrow = AsyncMock(return_value={'is_active': True, 'model_id': model_id})
+def given_is_active(mock_session: AsyncMock, model_id: str) -> None:
+    row = _make_model_config_table_mock(model_id=model_id, is_active=True)
+    _setup_scalar_one_or_none(mock_session, row)
 
 
 @then('拋出 ActiveModelDeleteError')
@@ -420,8 +384,8 @@ def then_active_delete_error(result: dict[str, Any]) -> None:
 
 
 @when(parsers.parse('呼叫 update_model("{model_id}", ...)'), target_fixture='result')
-def when_update_nonexistent(repo: Any, mock_conn: AsyncMock, model_id: str) -> dict[str, Any]:
-    mock_conn.fetchrow = AsyncMock(return_value=None)
+def when_update_nonexistent(repo: Any, mock_session: AsyncMock, model_id: str) -> dict[str, Any]:
+    _setup_scalar_one_or_none(mock_session, None)
     try:
         _run(repo.update_model(model_id, {'pricing': {}}))
         return {'error': None}
@@ -457,10 +421,10 @@ def then_model_config_fields(result: dict[str, Any]) -> None:
 
 
 @when(parsers.parse('查詢 "{model_id}" 的 pricing'), target_fixture='result')
-def when_query_pricing(repo: Any, mock_conn: AsyncMock, model_id: str) -> dict[str, Any]:
-    rows = _default_model_rows()
-    row = next(r for r in rows if r['model_id'] == model_id)
-    mock_conn.fetchrow = AsyncMock(return_value=row)
+def when_query_pricing(repo: Any, mock_session: AsyncMock, model_id: str) -> dict[str, Any]:
+    rows = _default_rows()
+    row = next(r for r in rows if r.model_id == model_id)
+    _setup_scalar_one_or_none(mock_session, row)
     model = _run(repo.get_model(model_id))
     return {'pricing': model.pricing}
 
