@@ -20,8 +20,11 @@ from persochattai.agent_factory import (
 from persochattai.assessment.router import router as assessment_router
 from persochattai.assessment.service import AssessmentService
 from persochattai.config import Settings
+from persochattai.content.crawl_service import CrawlService
 from persochattai.content.router import router as content_router
 from persochattai.content.scheduler import ContentScheduler
+from persochattai.content.scraper.allearsenglish import AllEarsEnglishScraper
+from persochattai.content.scraper.bbc import BBC6MinuteEnglishScraper
 from persochattai.content.service import ContentService
 from persochattai.conversation.manager import ConversationManager
 from persochattai.conversation.router import router as conversation_router
@@ -103,8 +106,17 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     # 6. FastRTC WebRTC stream
     mount_conversation_stream(app, model=settings.gemini_model)
 
-    # 7. Content scheduler
+    # 7. Crawl service + scheduler
+    scrapers = [AllEarsEnglishScraper(), BBC6MinuteEnglishScraper()]
+    crawl_service = CrawlService(
+        scrapers=scrapers,
+        repository=card_repo,
+        content_service=app.state.content_service,
+    )
+    app.state.crawl_service = crawl_service
+
     scheduler = ContentScheduler()
+    scheduler.set_crawl_service(crawl_service)
     scheduler.start()
     app.state.content_scheduler = scheduler
 

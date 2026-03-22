@@ -162,6 +162,11 @@ class CardRepositoryWrapper(_SessionMethodWrapper):
             repo = CardRepository(session)
             return await repo.exists_by_url(source_url)
 
+    async def filter_existing_urls(self, urls: list[str]) -> set[str]:
+        async with self._factory() as session:
+            repo = CardRepository(session)
+            return await repo.filter_existing_urls(urls)
+
 
 class UserRepositoryWrapper(_SessionMethodWrapper):
     async def create(self, display_name: str) -> dict[str, Any]:

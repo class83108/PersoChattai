@@ -31,6 +31,10 @@ class FreeTopicRequest(BaseModel):
     topic: str = Field(min_length=1, max_length=500)
 
 
+class TriggerCrawlRequest(BaseModel):
+    source_types: list[str] | None = None
+
+
 class UploadPdfResponse(BaseModel):
     cards: list[dict[str, Any]]
     truncated: bool = False
@@ -53,3 +57,5 @@ class CardRepositoryProtocol(Protocol):
     ) -> list[dict[str, Any]]: ...
 
     async def exists_by_url(self, source_url: str) -> bool: ...
+
+    async def filter_existing_urls(self, urls: list[str]) -> set[str]: ...

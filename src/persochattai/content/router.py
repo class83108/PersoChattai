@@ -7,7 +7,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
 
-from persochattai.content.schemas import FreeTopicRequest
+from persochattai.content.crawl_service import CrawlBusyError, CrawlService
+from persochattai.content.schemas import FreeTopicRequest, TriggerCrawlRequest
 from persochattai.content.service import ContentService, ContentServiceError
 
 logger = logging.getLogger(__name__)
@@ -79,6 +80,36 @@ async def upload_pdf(request: Request, file: UploadFile) -> dict[str, Any]:
     cards = await service.summarize_pdf(truncated_text)
 
     return {'cards': cards, 'truncated': was_truncated}
+
+
+@router.post('/trigger-crawl')
+async def trigger_crawl(
+    request: Request,
+    body: TriggerCrawlRequest | None = None,
+) -> dict[str, Any]:
+    crawl_service: CrawlService = request.app.state.crawl_service
+    source_types = body.source_types if body else None
+
+    # Treat empty list as None (crawl all)
+    if source_types is not None and len(source_types) == 0:
+        source_types = None
+
+    # Validate source_types
+    if source_types:
+        valid = set(crawl_service.get_source_types())
+        invalid = [st for st in source_types if st not in valid]
+        if invalid:
+            raise HTTPException(
+                status_code=422,
+                detail=f'無效的 source_type: {", ".join(invalid)}',
+            )
+
+    try:
+        result = await crawl_service.run_crawl(source_types=source_types)
+    except CrawlBusyError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+
+    return result.model_dump(mode='json')
 
 
 @router.post('/free-topic')
