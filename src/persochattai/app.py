@@ -84,7 +84,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     card_repo = CardRepositoryWrapper(factory)
     app.state.card_repository = card_repo
     content_agent = create_content_agent(settings, card_repo)
-    app.state.content_service = ContentService(repository=card_repo, agent=content_agent)
+    app.state.content_service = ContentService(repository=card_repo, agent=content_agent)  # type: ignore[arg-type]
 
     # 5. Conversation manager
     conv_repo = ConversationRepositoryWrapper(factory)
