@@ -6,8 +6,12 @@
 
   {# Load more button: show only when we got a full page of results #}
   {% if cards | length >= limit %}
+  {% set load_more_params = {"offset": offset + limit, "limit": limit} %}
+  {% if source_type %}{% set _ = load_more_params.update({"source_type": source_type}) %}{% endif %}
+  {% if difficulty %}{% set _ = load_more_params.update({"difficulty": difficulty}) %}{% endif %}
+  {% if keyword %}{% set _ = load_more_params.update({"keyword": keyword}) %}{% endif %}
   <div hx-get="/materials/partials/card-list"
-       hx-vals='{"offset": {{ offset + limit }}, "limit": {{ limit }}{% if source_type %}, "source_type": "{{ source_type }}"{% endif %}{% if difficulty %}, "difficulty": "{{ difficulty }}"{% endif %}{% if keyword %}, "keyword": "{{ keyword }}"{% endif %}}'
+       hx-vals='{{ load_more_params | tojson }}'
        hx-trigger="click"
        hx-swap="outerHTML"
        class="text-center py-4">

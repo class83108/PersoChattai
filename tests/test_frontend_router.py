@@ -286,7 +286,54 @@ class TestReportPartials:
             assert '50,000' in resp.text
 
 
-# --- _api_url ---
+# --- Helpers ---
+
+
+class TestParseErrorDetail:
+    def test_valid_json_with_detail(self) -> None:
+        from persochattai.frontend.router import _parse_error_detail
+
+        resp = httpx.Response(
+            400, json={'detail': '格式錯誤'}, request=_mock_request('GET', 'http://test')
+        )
+        assert _parse_error_detail(resp, 'fallback') == '格式錯誤'
+
+    def test_valid_json_without_detail(self) -> None:
+        from persochattai.frontend.router import _parse_error_detail
+
+        resp = httpx.Response(
+            500, json={'error': 'oops'}, request=_mock_request('GET', 'http://test')
+        )
+        assert _parse_error_detail(resp, 'fallback') == 'fallback'
+
+    def test_non_json_body(self) -> None:
+        from persochattai.frontend.router import _parse_error_detail
+
+        resp = httpx.Response(
+            502, content=b'<html>Bad Gateway</html>', request=_mock_request('GET', 'http://test')
+        )
+        assert _parse_error_detail(resp, '上傳失敗') == '上傳失敗'
+
+    def test_upload_pdf_non_json_error(self, client: TestClient) -> None:
+        """API 回非 JSON error body 時不會 500。"""
+        mock_resp = httpx.Response(
+            502,
+            content=b'<html>Bad Gateway</html>',
+            request=_mock_request('POST', 'http://test'),
+        )
+        with patch('persochattai.frontend.router.httpx.AsyncClient') as mock_cls:
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_resp)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_cls.return_value = mock_client
+
+            resp = client.post(
+                '/materials/upload-pdf',
+                files={'file': ('test.pdf', b'%PDF-fake', 'application/pdf')},
+            )
+            assert resp.status_code == 200
+            assert '上傳失敗' in resp.text
 
 
 class TestSafePathSegment:
