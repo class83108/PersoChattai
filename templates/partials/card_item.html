@@ -4,7 +4,7 @@
 
   {# Collapsed: title + badges #}
   <div class="collapse-title flex items-center gap-3">
-    <h3 class="text-lg font-semibold flex-1 min-w-0 truncate">{{ card.title or '無標題' }}</h3>
+    <h3 class="text-base md:text-lg font-semibold flex-1 min-w-0 truncate">{{ card.title or '無標題' }}</h3>
     <div class="flex gap-2 flex-shrink-0">
       {% if card.source_type %}
       <span class="badge badge-outline badge-sm">{{ card.source_type }}</span>
@@ -19,7 +19,7 @@
   <div class="collapse-content">
     {# Summary #}
     {% if card.summary %}
-    <p class="text-base-content/80 mb-4 leading-relaxed">{{ card.summary }}</p>
+    <p class="text-sm md:text-base text-base-content/80 mb-4 leading-relaxed">{{ card.summary }}</p>
     {% endif %}
 
     {# Keywords #}

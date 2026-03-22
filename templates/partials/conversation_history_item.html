@@ -9,17 +9,17 @@
       <div class="flex-shrink-0 ml-2">
         {% set status = conv.status | default('unknown') %}
         {% if status == 'completed' %}
-        <span class="badge badge-success badge-xs">完成</span>
+        <span class="badge badge-success badge-sm">完成</span>
         {% elif status == 'active' %}
-        <span class="badge badge-info badge-xs">進行中</span>
+        <span class="badge badge-info badge-sm">進行中</span>
         {% elif status == 'failed' %}
-        <span class="badge badge-error badge-xs">失敗</span>
+        <span class="badge badge-error badge-sm">失敗</span>
         {% elif status == 'cancelled' %}
-        <span class="badge badge-ghost badge-xs">取消</span>
+        <span class="badge badge-ghost badge-sm">取消</span>
         {% elif status == 'assessing' %}
-        <span class="badge badge-warning badge-xs">評估中</span>
+        <span class="badge badge-warning badge-sm">評估中</span>
         {% else %}
-        <span class="badge badge-ghost badge-xs">{{ status }}</span>
+        <span class="badge badge-ghost badge-sm">{{ status }}</span>
         {% endif %}
       </div>
     </div>

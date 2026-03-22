@@ -3,15 +3,15 @@
 <div class="stats stats-vertical sm:stats-horizontal shadow w-full">
   <div class="stat">
     <div class="stat-title">總 Token</div>
-    <div class="stat-value text-lg">{{ '{:,}'.format(usage.total_tokens | default(0)) }}</div>
+    <div class="stat-value text-xl md:text-2xl">{{ '{:,}'.format(usage.total_tokens | default(0)) }}</div>
   </div>
   <div class="stat">
     <div class="stat-title">總費用</div>
-    <div class="stat-value text-lg">${{ '%.4f' | format(usage.total_cost | default(0)) }}</div>
+    <div class="stat-value text-xl md:text-2xl">${{ '%.4f' | format(usage.total_cost | default(0)) }}</div>
   </div>
   <div class="stat">
     <div class="stat-title">對話次數</div>
-    <div class="stat-value text-lg">{{ usage.total_requests | default(usage.conversation_count | default(0)) }}</div>
+    <div class="stat-value text-xl md:text-2xl">{{ usage.total_requests | default(usage.conversation_count | default(0)) }}</div>
   </div>
 </div>
 {% else %}

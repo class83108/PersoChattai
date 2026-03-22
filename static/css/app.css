@@ -1,5 +1,13 @@
 /* PersoChattai — custom styles (minimal, rely on Tailwind + DaisyUI) */
 
+/* Desktop: slightly larger base font for better readability */
+@media (min-width: 768px) {
+  html { font-size: 17px; }
+}
+@media (min-width: 1024px) {
+  html { font-size: 18px; }
+}
+
 /* Smooth page transitions with HTMX */
 .htmx-swapping {
   opacity: 0;
@@ -9,4 +17,12 @@
 /* Bottom nav fixed positioning */
 .btm-nav-wrapper {
   padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Ensure collapse-open works for desktop-always-visible pattern */
+@media (min-width: 1024px) {
+  .lg\:collapse-open > .collapse-content {
+    max-height: none;
+    padding-bottom: 1rem;
+  }
 }

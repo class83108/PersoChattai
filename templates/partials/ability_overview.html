@@ -6,7 +6,7 @@
     <span class="badge badge-primary badge-lg text-2xl font-bold px-6 py-4">
       {{ progress.cefr_level }}
     </span>
-    <span class="text-xs text-base-content/40">CEFR 等級</span>
+    <span class="text-xs md:text-sm text-base-content/40">CEFR 等級</span>
   </div>
 
   {# Three dimensions #}
@@ -18,7 +18,7 @@
     ] %}
     {% for name, score, label in dimensions %}
     <div>
-      <div class="flex justify-between text-sm mb-1">
+      <div class="flex justify-between text-sm md:text-base mb-1">
         <span class="text-base-content/70">{{ label }}</span>
         <span class="font-mono text-base-content/50">{{ '%.1f' | format(score) }}</span>
       </div>

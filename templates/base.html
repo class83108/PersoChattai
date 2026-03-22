@@ -24,16 +24,16 @@
 <body class="min-h-screen flex flex-col bg-base-100">
 
   <!-- Desktop Navbar -->
-  <nav class="navbar bg-base-200 shadow-md hidden md:flex">
+  <nav aria-label="主選單" class="navbar bg-base-200 shadow-md hidden md:flex px-6 lg:px-10">
     <div class="flex-1">
-      <a href="/materials" class="btn btn-ghost text-xl font-bold tracking-tight">
+      <a href="/materials" class="btn btn-ghost text-2xl font-bold tracking-tight">
         <span class="text-primary">Perso</span>Chattai
       </a>
     </div>
     <div class="flex-none">
-      <ul class="menu menu-horizontal px-1 gap-1">
+      <ul class="menu menu-horizontal px-1 gap-2 text-base">
         <li>
-          <a href="/materials" data-nav-link class="rounded-lg">
+          <a href="/materials" data-nav-link class="rounded-lg px-4 py-2">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
             </svg>
@@ -41,7 +41,7 @@
           </a>
         </li>
         <li>
-          <a href="/roleplay" data-nav-link class="rounded-lg">
+          <a href="/roleplay" data-nav-link class="rounded-lg px-4 py-2">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
             </svg>
@@ -49,7 +49,7 @@
           </a>
         </li>
         <li>
-          <a href="/report" data-nav-link class="rounded-lg">
+          <a href="/report" data-nav-link class="rounded-lg px-4 py-2">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
             </svg>
@@ -61,7 +61,7 @@
   </nav>
 
   <!-- Mobile Top Bar -->
-  <nav class="navbar bg-base-200 shadow-md md:hidden">
+  <nav aria-label="行動版標題列" class="navbar bg-base-200 shadow-md md:hidden">
     <div class="flex-1">
       <span class="text-lg font-bold tracking-tight">
         <span class="text-primary">Perso</span>Chattai
@@ -70,7 +70,7 @@
   </nav>
 
   <!-- Main Content -->
-  <main class="flex-1 container mx-auto px-4 py-6 pb-20 md:pb-6" hx-boost="true">
+  <main class="flex-1 container mx-auto px-4 py-6 pb-20 md:px-8 md:py-8 md:pb-8 lg:px-12" hx-boost="true">
     {% block content %}{% endblock %}
   </main>
 

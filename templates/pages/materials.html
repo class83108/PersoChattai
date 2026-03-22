@@ -3,12 +3,12 @@
 {% block title %}素材管理 | PersoChattai{% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto">
+<div class="max-w-3xl lg:max-w-5xl mx-auto">
 
   {# Page header #}
-  <div class="mb-6">
-    <h1 class="text-3xl font-bold mb-1">素材管理</h1>
-    <p class="text-base-content/50 text-sm">瀏覽學習素材、上傳筆記、輸入自訂主題</p>
+  <div class="mb-6 md:mb-8">
+    <h1 class="text-2xl md:text-3xl lg:text-4xl font-bold mb-1">素材管理</h1>
+    <p class="text-base-content/50 text-sm md:text-base">瀏覽學習素材、上傳筆記、輸入自訂主題</p>
   </div>
 
   {# ── Filter & Search ── #}
@@ -18,7 +18,7 @@
        hx-swap="innerHTML"
        hx-include="[name='source_type'],[name='difficulty'],[name='keyword']">
 
-    <select name="source_type" class="select select-bordered select-sm flex-1"
+    <select name="source_type" class="select select-bordered select-sm md:select-md flex-1"
             hx-trigger="change">
       <option value="">所有來源</option>
       <option value="podcast">Podcast</option>
@@ -26,7 +26,7 @@
       <option value="free_topic">自由主題</option>
     </select>
 
-    <select name="difficulty" class="select select-bordered select-sm flex-1"
+    <select name="difficulty" class="select select-bordered select-sm md:select-md flex-1"
             hx-trigger="change">
       <option value="">所有難度</option>
       <option value="A1">A1</option>
@@ -39,7 +39,7 @@
 
     <input type="text" name="keyword"
            placeholder="搜尋關鍵字⋯"
-           class="input input-bordered input-sm flex-[2]"
+           class="input input-bordered input-sm md:input-md flex-[2]"
            hx-trigger="keyup changed delay:300ms" />
   </div>
 
@@ -60,7 +60,7 @@
   {# ── PDF Upload Section ── #}
   <div class="collapse collapse-arrow bg-base-200 rounded-box mb-4">
     <input type="checkbox" />
-    <div class="collapse-title text-lg font-medium">
+    <div class="collapse-title text-lg md:text-xl font-medium">
       📄 上傳 PDF 筆記
     </div>
     <div class="collapse-content">
@@ -71,8 +71,8 @@
             hx-indicator="#upload-spinner">
         <div class="flex flex-col sm:flex-row gap-3 items-start">
           <input type="file" name="file" accept=".pdf"
-                 class="file-input file-input-bordered file-input-sm flex-1" required />
-          <button type="submit" class="btn btn-primary btn-sm">
+                 class="file-input file-input-bordered file-input-sm md:file-input-md flex-1" required />
+          <button type="submit" class="btn btn-primary btn-sm md:btn-md">
             <span id="upload-spinner" class="loading loading-spinner loading-xs htmx-indicator"></span>
             上傳並摘要
           </button>
@@ -86,7 +86,7 @@
   {# ── Free Topic Section ── #}
   <div class="collapse collapse-arrow bg-base-200 rounded-box mb-4">
     <input type="checkbox" />
-    <div class="collapse-title text-lg font-medium">
+    <div class="collapse-title text-lg md:text-xl font-medium">
       💡 自由主題
     </div>
     <div class="collapse-content">
@@ -99,11 +99,11 @@
         <div class="flex flex-col gap-3">
           <textarea id="topic-input" name="topic"
                     placeholder="輸入你想練習的主題，例如：在咖啡店點餐、面試自我介紹⋯"
-                    class="textarea textarea-bordered text-sm" rows="3"
+                    class="textarea textarea-bordered text-sm md:text-base" rows="3"
                     maxlength="500" required></textarea>
           <div class="flex items-center justify-between">
-            <p class="text-xs text-base-content/40">最多 500 字</p>
-            <button type="submit" class="btn btn-primary btn-sm">
+            <p class="text-xs md:text-sm text-base-content/40">最多 500 字</p>
+            <button type="submit" class="btn btn-primary btn-sm md:btn-md">
               <span id="topic-spinner" class="loading loading-spinner loading-xs htmx-indicator"></span>
               生成素材
             </button>
