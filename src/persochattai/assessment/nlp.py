@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import re
 
-import spacy
 from lexical_diversity import lex_div
 from spacy.language import Language
 
 from persochattai.assessment.schemas import NlpMetrics
+
+logger = __import__('logging').getLogger(__name__)
 
 _MIN_TOKENS_FOR_DIVERSITY = 50
 
@@ -794,12 +795,26 @@ _TENSE_TAG_MAP = {
 }
 
 
+def _load_spacy_model() -> Language | None:
+    """嘗試載入 spacy model，失敗時回傳 None。"""
+    try:
+        import spacy
+
+        return spacy.load('en_core_web_sm')
+    except OSError:
+        logger.warning(
+            'spacy model en_core_web_sm 未安裝，NLP 指標將不可用。'
+            '請執行: python -m spacy download en_core_web_sm'
+        )
+        return None
+
+
 class NlpAnalyzer:
     def __init__(self, nlp: Language | None = None) -> None:
-        self._nlp = nlp or spacy.load('en_core_web_sm')
+        self._nlp = nlp or _load_spacy_model()
 
     def analyze(self, text: str) -> NlpMetrics:
-        if not text.strip():
+        if not text.strip() or self._nlp is None:
             return NlpMetrics()
 
         doc = self._nlp(text)
