@@ -16,6 +16,7 @@ from sqlalchemy import (
     Integer,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -37,6 +38,14 @@ class UserTable(Base):
 
 class CardTable(Base):
     __tablename__ = 'cards'
+    __table_args__ = (
+        Index(
+            'idx_cards_source_url_unique',
+            'source_url',
+            unique=True,
+            postgresql_where=text('source_url IS NOT NULL'),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     source_type: Mapped[str] = mapped_column(Text, nullable=False)

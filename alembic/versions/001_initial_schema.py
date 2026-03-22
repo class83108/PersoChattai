@@ -56,6 +56,13 @@ def upgrade() -> None:
             'created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
     )
+    op.create_index(
+        'idx_cards_source_url_unique',
+        'cards',
+        ['source_url'],
+        unique=True,
+        postgresql_where=sa.text('source_url IS NOT NULL'),
+    )
 
     op.create_table(
         'conversations',
