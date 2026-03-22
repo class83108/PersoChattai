@@ -1,0 +1,21 @@
+{# API usage summary fragment #}
+{% if usage %}
+<div class="stats stats-vertical sm:stats-horizontal shadow w-full">
+  <div class="stat">
+    <div class="stat-title">總 Token</div>
+    <div class="stat-value text-lg">{{ '{:,}'.format(usage.total_tokens | default(0)) }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-title">總費用</div>
+    <div class="stat-value text-lg">${{ '%.4f' | format(usage.total_cost | default(0)) }}</div>
+  </div>
+  <div class="stat">
+    <div class="stat-title">對話次數</div>
+    <div class="stat-value text-lg">{{ usage.total_requests | default(usage.conversation_count | default(0)) }}</div>
+  </div>
+</div>
+{% else %}
+<div class="text-center py-4">
+  <p class="text-base-content/40 text-sm">尚無用量資料</p>
+</div>
+{% endif %}

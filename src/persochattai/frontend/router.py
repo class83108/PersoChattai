@@ -182,3 +182,87 @@ async def conversation_history_partial(
         'partials/conversation_history.html',
         {'conversations': conversations},
     )
+
+
+# --- HTMX partial routes (report) ---
+
+
+@router.get('/report/partials/overview', response_class=HTMLResponse)
+async def report_overview_partial(
+    request: Request,
+    user_id: str = '',
+) -> Any:
+    progress: dict[str, Any] = {}
+    if user_id:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    _api_url(f'/api/assessment/user/{user_id}/progress', request),
+                )
+                if resp.status_code == 200:
+                    progress = resp.json()
+        except httpx.HTTPError:
+            logger.exception('Failed to fetch assessment progress')
+
+    return _render(request, 'partials/ability_overview.html', {'progress': progress})
+
+
+@router.get('/report/partials/history', response_class=HTMLResponse)
+async def report_history_partial(
+    request: Request,
+    user_id: str = '',
+) -> Any:
+    assessments: list[dict[str, Any]] = []
+    if user_id:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    _api_url(f'/api/assessment/user/{user_id}/history', request),
+                )
+                if resp.status_code == 200:
+                    assessments = resp.json()
+        except httpx.HTTPError:
+            logger.exception('Failed to fetch assessment history')
+
+    return _render(request, 'partials/assessment_history.html', {'assessments': assessments})
+
+
+@router.get('/report/partials/vocabulary', response_class=HTMLResponse)
+async def report_vocabulary_partial(
+    request: Request,
+    user_id: str = '',
+) -> Any:
+    vocab: dict[str, Any] = {}
+    if user_id:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    _api_url(f'/api/assessment/user/{user_id}/vocabulary', request),
+                )
+                if resp.status_code == 200:
+                    vocab = resp.json()
+        except httpx.HTTPError:
+            logger.exception('Failed to fetch vocabulary stats')
+
+    return _render(request, 'partials/vocabulary_stats.html', {'vocab': vocab})
+
+
+@router.get('/report/partials/usage', response_class=HTMLResponse)
+async def report_usage_partial(
+    request: Request,
+    user_id: str = '',
+) -> Any:
+    usage: dict[str, Any] = {}
+    if user_id:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    _api_url('/api/usage', request),
+                    params={'user_id': user_id} if user_id else {},
+                )
+                if resp.status_code == 200:
+                    usage = resp.json()
+        except httpx.HTTPError:
+            logger.exception('Failed to fetch usage stats')
+
+    return _render(request, 'partials/usage_summary.html', {'usage': usage})

@@ -1,0 +1,10 @@
+{# Assessment history list fragment #}
+{% if assessments %}
+  {% for item in assessments %}
+    {% include "partials/assessment_item.html" %}
+  {% endfor %}
+{% else %}
+<div class="text-center py-8">
+  <p class="text-base-content/40 text-sm">還沒有評估記錄</p>
+</div>
+{% endif %}

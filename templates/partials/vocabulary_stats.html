@@ -1,0 +1,26 @@
+{# Vocabulary statistics fragment #}
+{% if vocab and vocab.total_words is defined %}
+<div class="stats stats-vertical sm:stats-horizontal shadow w-full">
+  <div class="stat">
+    <div class="stat-title">累計詞彙</div>
+    <div class="stat-value text-primary">{{ vocab.total_words | default(0) }}</div>
+    <div class="stat-desc">不重複詞彙數</div>
+  </div>
+  <div class="stat">
+    <div class="stat-title">新詞率</div>
+    <div class="stat-value text-secondary">{{ '%.0f%%' | format((vocab.new_word_rate | default(0)) * 100) }}</div>
+    <div class="stat-desc">最近一次對話</div>
+  </div>
+  {% if vocab.k1_ratio is defined %}
+  <div class="stat">
+    <div class="stat-title">K1 佔比</div>
+    <div class="stat-value text-accent">{{ '%.0f%%' | format((vocab.k1_ratio | default(0)) * 100) }}</div>
+    <div class="stat-desc">常見 1000 字</div>
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="text-center py-4">
+  <p class="text-base-content/40 text-sm">尚無詞彙資料</p>
+</div>
+{% endif %}
