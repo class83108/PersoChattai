@@ -1,0 +1,13 @@
+{# Upload / free-topic result fragment #}
+{% if error %}
+<div class="alert alert-error mb-4">
+  <span>{{ error }}</span>
+</div>
+{% elif cards %}
+<div class="alert alert-success mb-4">
+  <span>已生成 {{ cards | length }} 張卡片</span>
+</div>
+{% for card in cards %}
+  {% include "partials/card_item.html" %}
+{% endfor %}
+{% endif %}

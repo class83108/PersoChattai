@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Request
+import httpx
+from fastapi import APIRouter, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=['frontend'])
 
@@ -20,8 +24,12 @@ async def index() -> RedirectResponse:
     return RedirectResponse(url='/materials', status_code=302)
 
 
-def _render(request: Request, template: str) -> Any:
-    return templates.TemplateResponse(request=request, name=template)
+def _render(request: Request, template: str, context: dict[str, Any] | None = None) -> Any:
+    ctx = context or {}
+    return templates.TemplateResponse(request=request, name=template, context=ctx)
+
+
+# --- Page routes ---
 
 
 @router.get('/materials', response_class=HTMLResponse)
@@ -37,3 +45,113 @@ async def roleplay(request: Request) -> Any:
 @router.get('/report', response_class=HTMLResponse)
 async def report(request: Request) -> Any:
     return _render(request, 'pages/report.html')
+
+
+# --- HTMX partial routes (materials) ---
+
+_API_BASE = 'http://localhost:8000'
+
+
+def _api_url(path: str, request: Request) -> str:
+    base = str(request.base_url).rstrip('/')
+    return f'{base}{path}'
+
+
+@router.get('/materials/partials/card-list', response_class=HTMLResponse)
+async def card_list_partial(
+    request: Request,
+    source_type: str | None = None,
+    difficulty: str | None = None,
+    tag: str | None = None,
+    keyword: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> Any:
+    params: dict[str, Any] = {'limit': limit, 'offset': offset}
+    if source_type:
+        params['source_type'] = source_type
+    if difficulty:
+        params['difficulty'] = difficulty
+    if tag:
+        params['tag'] = tag
+    if keyword:
+        params['keyword'] = keyword
+
+    cards: list[dict[str, Any]] = []
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(_api_url('/api/content/cards', request), params=params)
+            if resp.status_code == 200:
+                cards = resp.json()
+    except httpx.HTTPError:
+        logger.exception('Failed to fetch cards from API')
+
+    return _render(
+        request,
+        'partials/card_list.html',
+        {
+            'cards': cards,
+            'limit': limit,
+            'offset': offset,
+            'source_type': source_type or '',
+            'difficulty': difficulty or '',
+            'keyword': keyword or '',
+        },
+    )
+
+
+@router.post('/materials/upload-pdf', response_class=HTMLResponse)
+async def upload_pdf_partial(request: Request, file: UploadFile) -> Any:
+    content = await file.read()
+    cards: list[dict[str, Any]] = []
+    error = ''
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                _api_url('/api/content/upload-pdf', request),
+                files={
+                    'file': (
+                        file.filename or 'upload.pdf',
+                        content,
+                        file.content_type or 'application/pdf',
+                    )
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                cards = data.get('cards', [])
+            else:
+                detail = resp.json().get('detail', '上傳失敗')
+                error = detail
+    except httpx.HTTPError:
+        logger.exception('Failed to upload PDF')
+        error = '上傳失敗，請稍後再試'
+
+    return _render(request, 'partials/upload_result.html', {'cards': cards, 'error': error})
+
+
+@router.post('/materials/free-topic', response_class=HTMLResponse)
+async def free_topic_partial(request: Request) -> Any:
+    body = await request.json()
+    cards: list[dict[str, Any]] = []
+    error = ''
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                _api_url('/api/content/free-topic', request),
+                json=body,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                card = data.get('card', data.get('cards', []))
+                cards = card if isinstance(card, list) else [card]
+            else:
+                detail = resp.json().get('detail', '提交失敗')
+                error = detail
+    except httpx.HTTPError:
+        logger.exception('Failed to submit free topic')
+        error = '提交失敗，請稍後再試'
+
+    return _render(request, 'partials/upload_result.html', {'cards': cards, 'error': error})
