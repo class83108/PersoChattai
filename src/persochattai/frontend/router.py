@@ -216,6 +216,37 @@ async def free_topic_partial(request: Request) -> Any:
     return _render(request, 'partials/upload_result.html', {'cards': cards, 'error': error})
 
 
+@router.post('/materials/trigger-crawl', response_class=HTMLResponse)
+async def trigger_crawl_partial(request: Request) -> Any:
+    error = ''
+    result: dict[str, Any] = {}
+
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(_api_url('/api/content/trigger-crawl', request))
+            if resp.status_code == 200:
+                result = resp.json()
+            elif resp.status_code == 409:
+                error = _parse_error_detail(resp, '爬蟲正在執行中，請稍後再試')
+            else:
+                error = _parse_error_detail(resp, '爬取失敗')
+    except httpx.HTTPError:
+        logger.exception('Failed to trigger crawl')
+        error = '爬取失敗，請稍後再試'
+
+    return _render(
+        request,
+        'partials/crawl_result.html',
+        {
+            'error': error,
+            'total_new': result.get('total_new', 0),
+            'total_skipped': result.get('total_skipped', 0),
+            'total_failed': result.get('total_failed', 0),
+            'sources': result.get('sources', []),
+        },
+    )
+
+
 # --- HTMX partial routes (roleplay) ---
 
 

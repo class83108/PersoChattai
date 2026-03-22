@@ -1,0 +1,19 @@
+{# Crawl trigger result fragment #}
+{% if error %}
+<div class="alert alert-error mb-4">
+  <span>{{ error }}</span>
+</div>
+{% else %}
+<div class="alert alert-success mb-4">
+  <div class="flex flex-col gap-1">
+    <span class="font-medium">爬取完成</span>
+    <span class="text-sm opacity-80">新增 {{ total_new }} 篇 / 跳過 {{ total_skipped }} 篇 / 失敗 {{ total_failed }} 篇</span>
+  </div>
+</div>
+{% for source in sources %}
+<div class="text-xs text-base-content/50 ml-2 mb-1">
+  {{ source.source_type }}: +{{ source.new_count }} / ~{{ source.skipped_count }} / !{{ source.failed_count }}
+  {% if source.error %}<span class="text-error"> ({{ source.error }})</span>{% endif %}
+</div>
+{% endfor %}
+{% endif %}
