@@ -289,6 +289,44 @@ class TestReportPartials:
 # --- _api_url ---
 
 
+class TestSafePathSegment:
+    def test_normal_value(self) -> None:
+        from persochattai.frontend.router import _safe_path_segment
+
+        assert _safe_path_segment('user-123') == 'user-123'
+
+    def test_rejects_slash(self) -> None:
+        from persochattai.frontend.router import _safe_path_segment
+
+        assert _safe_path_segment('../../etc/passwd') == ''
+
+    def test_rejects_dotdot(self) -> None:
+        from persochattai.frontend.router import _safe_path_segment
+
+        assert _safe_path_segment('..') == ''
+
+    def test_rejects_empty(self) -> None:
+        from persochattai.frontend.router import _safe_path_segment
+
+        assert _safe_path_segment('') == ''
+        assert _safe_path_segment('   ') == ''
+
+    def test_encodes_special_chars(self) -> None:
+        from persochattai.frontend.router import _safe_path_segment
+
+        result = _safe_path_segment('user name')
+        assert '/' not in result
+        assert result == 'user%20name'
+
+    def test_malicious_user_id_returns_empty_state(self, client: TestClient) -> None:
+        """惡意 user_id 被過濾後回傳空狀態。"""
+        resp = client.get(
+            '/report/partials/overview',
+            params={'user_id': '../../etc/passwd'},
+        )
+        assert resp.status_code == 200
+
+
 class TestApiUrl:
     def test_api_url_builds_from_scope(self, client: TestClient) -> None:
         """_api_url 使用 ASGI scope 而非 Host header。"""

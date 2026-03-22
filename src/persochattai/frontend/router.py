@@ -50,6 +50,19 @@ async def report(request: Request) -> Any:
 # --- HTMX partial routes (materials) ---
 
 
+def _safe_path_segment(value: str) -> str:
+    """Sanitise a user-supplied value before embedding it in a URL path.
+
+    Rejects path traversal characters (/, ..) and encodes the rest.
+    """
+    from urllib.parse import quote
+
+    stripped = value.strip()
+    if not stripped or '/' in stripped or '..' in stripped:
+        return ''
+    return quote(stripped, safe='')
+
+
 def _api_url(path: str, request: Request) -> str:
     """Build internal API URL from the app's own base URL.
 
@@ -176,11 +189,12 @@ async def conversation_history_partial(
     user_id: str = '',
 ) -> Any:
     conversations: list[dict[str, Any]] = []
-    if user_id:
+    safe_uid = _safe_path_segment(user_id)
+    if safe_uid:
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
-                    _api_url(f'/api/conversation/history/{user_id}', request),
+                    _api_url(f'/api/conversation/history/{safe_uid}', request),
                 )
                 if resp.status_code == 200:
                     conversations = resp.json()
@@ -203,11 +217,12 @@ async def report_overview_partial(
     user_id: str = '',
 ) -> Any:
     progress: dict[str, Any] = {}
-    if user_id:
+    safe_uid = _safe_path_segment(user_id)
+    if safe_uid:
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
-                    _api_url(f'/api/assessment/user/{user_id}/progress', request),
+                    _api_url(f'/api/assessment/user/{safe_uid}/progress', request),
                 )
                 if resp.status_code == 200:
                     progress = resp.json()
@@ -223,11 +238,12 @@ async def report_history_partial(
     user_id: str = '',
 ) -> Any:
     assessments: list[dict[str, Any]] = []
-    if user_id:
+    safe_uid = _safe_path_segment(user_id)
+    if safe_uid:
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
-                    _api_url(f'/api/assessment/user/{user_id}/history', request),
+                    _api_url(f'/api/assessment/user/{safe_uid}/history', request),
                 )
                 if resp.status_code == 200:
                     assessments = resp.json()
@@ -243,11 +259,12 @@ async def report_vocabulary_partial(
     user_id: str = '',
 ) -> Any:
     vocab: dict[str, Any] = {}
-    if user_id:
+    safe_uid = _safe_path_segment(user_id)
+    if safe_uid:
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
-                    _api_url(f'/api/assessment/user/{user_id}/vocabulary', request),
+                    _api_url(f'/api/assessment/user/{safe_uid}/vocabulary', request),
                 )
                 if resp.status_code == 200:
                     vocab = resp.json()
@@ -263,12 +280,13 @@ async def report_usage_partial(
     user_id: str = '',
 ) -> Any:
     usage: dict[str, Any] = {}
-    if user_id:
+    safe_uid = _safe_path_segment(user_id)
+    if safe_uid:
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
                     _api_url('/api/usage', request),
-                    params={'user_id': user_id} if user_id else {},
+                    params={'user_id': safe_uid},
                 )
                 if resp.status_code == 200:
                     usage = resp.json()
