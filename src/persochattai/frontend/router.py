@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 from fastapi import APIRouter, Request, UploadFile
@@ -47,7 +49,7 @@ async def report(request: Request) -> Any:
     return _render(request, 'pages/report.html')
 
 
-# --- HTMX partial routes (materials) ---
+# --- Internal helpers ---
 
 
 def _safe_path_segment(value: str) -> str:
@@ -55,8 +57,6 @@ def _safe_path_segment(value: str) -> str:
 
     Rejects path traversal characters (/, ..) and encodes the rest.
     """
-    from urllib.parse import quote
-
     stripped = value.strip()
     if not stripped or '/' in stripped or '..' in stripped:
         return ''
@@ -80,6 +80,50 @@ def _api_url(path: str, request: Request) -> str:
     return f'{base}{path}'
 
 
+def _parse_error_detail(resp: httpx.Response, fallback: str) -> str:
+    """Safely extract error detail from a non-200 API response."""
+    try:
+        return resp.json().get('detail', fallback)
+    except (json.JSONDecodeError, ValueError):
+        return fallback
+
+
+async def _proxy_get(
+    request: Request,
+    api_path: str,
+    *,
+    params: dict[str, Any] | None = None,
+) -> Any:
+    """GET proxy to internal API. Returns parsed JSON or None on failure."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(_api_url(api_path, request), params=params)
+            if resp.status_code == 200:
+                return resp.json()
+            logger.warning('API %s returned %s', api_path, resp.status_code)
+    except httpx.HTTPError:
+        logger.exception('Failed to fetch %s', api_path)
+    return None
+
+
+async def _proxy_get_for_user(
+    request: Request,
+    api_path: str,
+    user_id: str,
+    *,
+    params: dict[str, Any] | None = None,
+) -> Any:
+    """GET proxy with user_id sanitisation. Returns parsed JSON or None."""
+    safe_uid = _safe_path_segment(user_id)
+    if not safe_uid:
+        return None
+    path = api_path.format(user_id=safe_uid)
+    return await _proxy_get(request, path, params=params)
+
+
+# --- HTMX partial routes (materials) ---
+
+
 @router.get('/materials/partials/card-list', response_class=HTMLResponse)
 async def card_list_partial(
     request: Request,
@@ -100,14 +144,7 @@ async def card_list_partial(
     if keyword:
         params['keyword'] = keyword
 
-    cards: list[dict[str, Any]] = []
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(_api_url('/api/content/cards', request), params=params)
-            if resp.status_code == 200:
-                cards = resp.json()
-    except httpx.HTTPError:
-        logger.exception('Failed to fetch cards from API')
+    cards = await _proxy_get(request, '/api/content/cards', params=params) or []
 
     return _render(
         request,
@@ -145,8 +182,7 @@ async def upload_pdf_partial(request: Request, file: UploadFile) -> Any:
                 data = resp.json()
                 cards = data.get('cards', [])
             else:
-                detail = resp.json().get('detail', '上傳失敗')
-                error = detail
+                error = _parse_error_detail(resp, '上傳失敗')
     except httpx.HTTPError:
         logger.exception('Failed to upload PDF')
         error = '上傳失敗，請稍後再試'
@@ -171,8 +207,7 @@ async def free_topic_partial(request: Request) -> Any:
                 card = data.get('card', data.get('cards', []))
                 cards = card if isinstance(card, list) else [card]
             else:
-                detail = resp.json().get('detail', '提交失敗')
-                error = detail
+                error = _parse_error_detail(resp, '提交失敗')
     except httpx.HTTPError:
         logger.exception('Failed to submit free topic')
         error = '提交失敗，請稍後再試'
@@ -188,19 +223,9 @@ async def conversation_history_partial(
     request: Request,
     user_id: str = '',
 ) -> Any:
-    conversations: list[dict[str, Any]] = []
-    safe_uid = _safe_path_segment(user_id)
-    if safe_uid:
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    _api_url(f'/api/conversation/history/{safe_uid}', request),
-                )
-                if resp.status_code == 200:
-                    conversations = resp.json()
-        except httpx.HTTPError:
-            logger.exception('Failed to fetch conversation history')
-
+    conversations = (
+        await _proxy_get_for_user(request, '/api/conversation/history/{user_id}', user_id) or []
+    )
     return _render(
         request,
         'partials/conversation_history.html',
@@ -216,19 +241,9 @@ async def report_overview_partial(
     request: Request,
     user_id: str = '',
 ) -> Any:
-    progress: dict[str, Any] = {}
-    safe_uid = _safe_path_segment(user_id)
-    if safe_uid:
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    _api_url(f'/api/assessment/user/{safe_uid}/progress', request),
-                )
-                if resp.status_code == 200:
-                    progress = resp.json()
-        except httpx.HTTPError:
-            logger.exception('Failed to fetch assessment progress')
-
+    progress = (
+        await _proxy_get_for_user(request, '/api/assessment/user/{user_id}/progress', user_id) or {}
+    )
     return _render(request, 'partials/ability_overview.html', {'progress': progress})
 
 
@@ -237,19 +252,9 @@ async def report_history_partial(
     request: Request,
     user_id: str = '',
 ) -> Any:
-    assessments: list[dict[str, Any]] = []
-    safe_uid = _safe_path_segment(user_id)
-    if safe_uid:
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    _api_url(f'/api/assessment/user/{safe_uid}/history', request),
-                )
-                if resp.status_code == 200:
-                    assessments = resp.json()
-        except httpx.HTTPError:
-            logger.exception('Failed to fetch assessment history')
-
+    assessments = (
+        await _proxy_get_for_user(request, '/api/assessment/user/{user_id}/history', user_id) or []
+    )
     return _render(request, 'partials/assessment_history.html', {'assessments': assessments})
 
 
@@ -258,19 +263,10 @@ async def report_vocabulary_partial(
     request: Request,
     user_id: str = '',
 ) -> Any:
-    vocab: dict[str, Any] = {}
-    safe_uid = _safe_path_segment(user_id)
-    if safe_uid:
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    _api_url(f'/api/assessment/user/{safe_uid}/vocabulary', request),
-                )
-                if resp.status_code == 200:
-                    vocab = resp.json()
-        except httpx.HTTPError:
-            logger.exception('Failed to fetch vocabulary stats')
-
+    vocab = (
+        await _proxy_get_for_user(request, '/api/assessment/user/{user_id}/vocabulary', user_id)
+        or {}
+    )
     return _render(request, 'partials/vocabulary_stats.html', {'vocab': vocab})
 
 
@@ -279,18 +275,8 @@ async def report_usage_partial(
     request: Request,
     user_id: str = '',
 ) -> Any:
-    usage: dict[str, Any] = {}
     safe_uid = _safe_path_segment(user_id)
-    if safe_uid:
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    _api_url('/api/usage', request),
-                    params={'user_id': safe_uid},
-                )
-                if resp.status_code == 200:
-                    usage = resp.json()
-        except httpx.HTTPError:
-            logger.exception('Failed to fetch usage stats')
-
+    usage = (
+        await _proxy_get(request, '/api/usage', params={'user_id': safe_uid}) if safe_uid else None
+    ) or {}
     return _render(request, 'partials/usage_summary.html', {'usage': usage})
