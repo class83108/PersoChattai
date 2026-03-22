@@ -1,7 +1,7 @@
 /* PersoChattai — shared JS */
 
 // HTMX configuration
-document.addEventListener('htmx:configRequest', (event) => {
+document.addEventListener('htmx:configRequest', () => {
   // Add CSRF or custom headers here if needed in the future
 });
 
@@ -21,3 +21,16 @@ function updateActiveNav() {
 
 // Initial nav state
 document.addEventListener('DOMContentLoaded', updateActiveNav);
+
+// --- User ID (localStorage UUID) ---
+function getUserId() {
+  let uid = localStorage.getItem('persochattai_user_id');
+  if (!uid) {
+    uid = crypto.randomUUID();
+    localStorage.setItem('persochattai_user_id', uid);
+  }
+  return uid;
+}
+
+// Expose globally
+window.getUserId = getUserId;

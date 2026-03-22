@@ -155,3 +155,30 @@ async def free_topic_partial(request: Request) -> Any:
         error = '提交失敗，請稍後再試'
 
     return _render(request, 'partials/upload_result.html', {'cards': cards, 'error': error})
+
+
+# --- HTMX partial routes (roleplay) ---
+
+
+@router.get('/roleplay/partials/history', response_class=HTMLResponse)
+async def conversation_history_partial(
+    request: Request,
+    user_id: str = '',
+) -> Any:
+    conversations: list[dict[str, Any]] = []
+    if user_id:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    _api_url(f'/api/conversation/history/{user_id}', request),
+                )
+                if resp.status_code == 200:
+                    conversations = resp.json()
+        except httpx.HTTPError:
+            logger.exception('Failed to fetch conversation history')
+
+    return _render(
+        request,
+        'partials/conversation_history.html',
+        {'conversations': conversations},
+    )
