@@ -1,0 +1,27 @@
+{# Single conversation history item #}
+<div class="card bg-base-200 compact mb-2">
+  <div class="card-body py-3 px-4">
+    <div class="flex items-center justify-between">
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-medium truncate">{{ conv.source_type | default('—') }} / {{ conv.source_ref | default('—') }}</p>
+        <p class="text-xs text-base-content/40">{{ conv.created_at | default('') }}</p>
+      </div>
+      <div class="flex-shrink-0 ml-2">
+        {% set status = conv.status | default('unknown') %}
+        {% if status == 'completed' %}
+        <span class="badge badge-success badge-xs">完成</span>
+        {% elif status == 'active' %}
+        <span class="badge badge-info badge-xs">進行中</span>
+        {% elif status == 'failed' %}
+        <span class="badge badge-error badge-xs">失敗</span>
+        {% elif status == 'cancelled' %}
+        <span class="badge badge-ghost badge-xs">取消</span>
+        {% elif status == 'assessing' %}
+        <span class="badge badge-warning badge-xs">評估中</span>
+        {% else %}
+        <span class="badge badge-ghost badge-xs">{{ status }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>

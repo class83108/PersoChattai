@@ -1,0 +1,24 @@
+{# Card list fragment — rendered by HTMX partial endpoint #}
+{% if cards %}
+  {% for card in cards %}
+    {% include "partials/card_item.html" %}
+  {% endfor %}
+
+  {# Load more button: show only when we got a full page of results #}
+  {% if cards | length >= limit %}
+  <div hx-get="/materials/partials/card-list"
+       hx-vals='{"offset": {{ offset + limit }}, "limit": {{ limit }}{% if source_type %}, "source_type": "{{ source_type }}"{% endif %}{% if difficulty %}, "difficulty": "{{ difficulty }}"{% endif %}{% if keyword %}, "keyword": "{{ keyword }}"{% endif %}}'
+       hx-trigger="click"
+       hx-swap="outerHTML"
+       class="text-center py-4">
+    <button class="btn btn-outline btn-sm">載入更多</button>
+  </div>
+  {% endif %}
+{% elif offset == 0 %}
+  {# Empty state — only show when it's the first page #}
+  <div class="flex flex-col items-center justify-center py-16 text-center">
+    <div class="text-5xl mb-4">📭</div>
+    <p class="text-base-content/50">目前沒有素材</p>
+    <p class="text-base-content/40 text-sm mt-1">上傳 PDF 或輸入主題來建立第一張卡片</p>
+  </div>
+{% endif %}

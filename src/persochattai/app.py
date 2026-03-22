@@ -5,9 +5,11 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from persochattai.agent_factory import (
     create_assessment_agent,
@@ -31,6 +33,7 @@ from persochattai.database.session_wrapper import (
     UsageRepositoryWrapper,
     VocabularyRepositoryWrapper,
 )
+from persochattai.frontend.router import router as frontend_router
 from persochattai.usage.router import router as usage_router
 
 logger = logging.getLogger(__name__)
@@ -123,6 +126,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = settings
 
+    # Static files
+    static_dir = Path(__file__).resolve().parent.parent.parent / 'static'
+    app.mount('/static', StaticFiles(directory=str(static_dir)), name='static')
+
+    # Routers
+    app.include_router(frontend_router)
     app.include_router(content_router)
     app.include_router(conversation_router)
     app.include_router(assessment_router)

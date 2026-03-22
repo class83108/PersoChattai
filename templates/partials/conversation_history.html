@@ -1,0 +1,12 @@
+{# Conversation history list fragment #}
+{% if conversations %}
+  {% for conv in conversations %}
+    {% include "partials/conversation_history_item.html" %}
+  {% endfor %}
+{% else %}
+  <div class="text-center py-8">
+    <div class="text-4xl mb-3">🎭</div>
+    <p class="text-base-content/40 text-sm">還沒有對話紀錄</p>
+    <p class="text-base-content/30 text-xs mt-1">開始你的第一場 Role Play 吧</p>
+  </div>
+{% endif %}

@@ -1,0 +1,12 @@
+/* PersoChattai — custom styles (minimal, rely on Tailwind + DaisyUI) */
+
+/* Smooth page transitions with HTMX */
+.htmx-swapping {
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+/* Bottom nav fixed positioning */
+.btm-nav-wrapper {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}

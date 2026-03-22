@@ -1,0 +1,37 @@
+{# Ability overview fragment — CEFR badge + 3 dimension progress bars #}
+{% if progress and progress.cefr_level %}
+<div class="flex flex-col sm:flex-row gap-6 items-start">
+  {# CEFR Badge #}
+  <div class="flex flex-col items-center gap-2">
+    <span class="badge badge-primary badge-lg text-2xl font-bold px-6 py-4">
+      {{ progress.cefr_level }}
+    </span>
+    <span class="text-xs text-base-content/40">CEFR 等級</span>
+  </div>
+
+  {# Three dimensions #}
+  <div class="flex-1 w-full space-y-3">
+    {% set dimensions = [
+      ('Lexical Resource', progress.lexical_score | default(0), '詞彙資源'),
+      ('Fluency & Coherence', progress.fluency_score | default(0), '流暢度與連貫性'),
+      ('Grammar Range & Accuracy', progress.grammar_score | default(0), '語法廣度與準確度'),
+    ] %}
+    {% for name, score, label in dimensions %}
+    <div>
+      <div class="flex justify-between text-sm mb-1">
+        <span class="text-base-content/70">{{ label }}</span>
+        <span class="font-mono text-base-content/50">{{ '%.1f' | format(score) }}</span>
+      </div>
+      <progress class="progress progress-primary w-full" value="{{ score }}" max="9"></progress>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="text-center py-8">
+  <div class="text-4xl mb-3">📈</div>
+  <p class="text-base-content/50">尚無評估資料</p>
+  <p class="text-base-content/40 text-sm mt-1">完成一場 Role Play 後即可查看能力報告</p>
+  <a href="/roleplay" class="btn btn-primary btn-sm mt-4">開始 Role Play</a>
+</div>
+{% endif %}

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}素材管理 | PersoChattai{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+
+  {# Page header #}
+  <div class="mb-6">
+    <h1 class="text-3xl font-bold mb-1">素材管理</h1>
+    <p class="text-base-content/50 text-sm">瀏覽學習素材、上傳筆記、輸入自訂主題</p>
+  </div>
+
+  {# ── Filter & Search ── #}
+  <div class="flex flex-col sm:flex-row gap-3 mb-6"
+       hx-get="/materials/partials/card-list"
+       hx-target="#card-list"
+       hx-swap="innerHTML"
+       hx-include="[name='source_type'],[name='difficulty'],[name='keyword']">
+
+    <select name="source_type" class="select select-bordered select-sm flex-1"
+            hx-trigger="change">
+      <option value="">所有來源</option>
+      <option value="podcast">Podcast</option>
+      <option value="pdf">PDF 筆記</option>
+      <option value="free_topic">自由主題</option>
+    </select>
+
+    <select name="difficulty" class="select select-bordered select-sm flex-1"
+            hx-trigger="change">
+      <option value="">所有難度</option>
+      <option value="A1">A1</option>
+      <option value="A2">A2</option>
+      <option value="B1">B1</option>
+      <option value="B2">B2</option>
+      <option value="C1">C1</option>
+      <option value="C2">C2</option>
+    </select>
+
+    <input type="text" name="keyword"
+           placeholder="搜尋關鍵字⋯"
+           class="input input-bordered input-sm flex-[2]"
+           hx-trigger="keyup changed delay:300ms" />
+  </div>
+
+  {# ── Card List Container ── #}
+  <div id="card-list"
+       hx-get="/materials/partials/card-list"
+       hx-trigger="load"
+       hx-swap="innerHTML">
+    {# Loading skeleton #}
+    <div class="flex justify-center py-12">
+      <span class="loading loading-dots loading-lg"></span>
+    </div>
+  </div>
+
+  {# ── Divider ── #}
+  <div class="divider my-8">新增素材</div>
+
+  {# ── PDF Upload Section ── #}
+  <div class="collapse collapse-arrow bg-base-200 rounded-box mb-4">
+    <input type="checkbox" />
+    <div class="collapse-title text-lg font-medium">
+      📄 上傳 PDF 筆記
+    </div>
+    <div class="collapse-content">
+      <form hx-post="/materials/upload-pdf"
+            hx-target="#upload-result"
+            hx-swap="innerHTML"
+            hx-encoding="multipart/form-data"
+            hx-indicator="#upload-spinner">
+        <div class="flex flex-col sm:flex-row gap-3 items-start">
+          <input type="file" name="file" accept=".pdf"
+                 class="file-input file-input-bordered file-input-sm flex-1" required />
+          <button type="submit" class="btn btn-primary btn-sm">
+            <span id="upload-spinner" class="loading loading-spinner loading-xs htmx-indicator"></span>
+            上傳並摘要
+          </button>
+        </div>
+        <p class="text-xs text-base-content/40 mt-2">最大 10MB，系統將自動擷取前 5000 字進行摘要</p>
+      </form>
+      <div id="upload-result" class="mt-4"></div>
+    </div>
+  </div>
+
+  {# ── Free Topic Section ── #}
+  <div class="collapse collapse-arrow bg-base-200 rounded-box mb-4">
+    <input type="checkbox" />
+    <div class="collapse-title text-lg font-medium">
+      💡 自由主題
+    </div>
+    <div class="collapse-content">
+      <form hx-post="/materials/free-topic"
+            hx-target="#topic-result"
+            hx-swap="innerHTML"
+            hx-indicator="#topic-spinner"
+            hx-headers='{"Content-Type": "application/json"}'
+            hx-vals="js:{topic: document.getElementById('topic-input').value}">
+        <div class="flex flex-col gap-3">
+          <textarea id="topic-input" name="topic"
+                    placeholder="輸入你想練習的主題，例如：在咖啡店點餐、面試自我介紹⋯"
+                    class="textarea textarea-bordered text-sm" rows="3"
+                    maxlength="500" required></textarea>
+          <div class="flex items-center justify-between">
+            <p class="text-xs text-base-content/40">最多 500 字</p>
+            <button type="submit" class="btn btn-primary btn-sm">
+              <span id="topic-spinner" class="loading loading-spinner loading-xs htmx-indicator"></span>
+              生成素材
+            </button>
+          </div>
+        </div>
+      </form>
+      <div id="topic-result" class="mt-4"></div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

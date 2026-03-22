@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}能力報告 | PersoChattai{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-8">
+
+  {# Page header #}
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold">能力報告</h1>
+    <span class="text-sm text-base-content/40">學習進度追蹤</span>
+  </div>
+
+  {# Ability overview — CEFR + 3 dimension scores #}
+  <section>
+    <h2 class="text-lg font-semibold mb-3">綜合能力</h2>
+    <div
+      hx-get="/report/partials/overview"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+      hx-vals='js:{"user_id": getUserId()}'
+    >
+      <div class="flex justify-center py-8">
+        <span class="loading loading-dots loading-md"></span>
+      </div>
+    </div>
+  </section>
+
+  {# Vocabulary statistics #}
+  <section>
+    <h2 class="text-lg font-semibold mb-3">詞彙統計</h2>
+    <div
+      hx-get="/report/partials/vocabulary"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+      hx-vals='js:{"user_id": getUserId()}'
+    >
+      <div class="flex justify-center py-8">
+        <span class="loading loading-dots loading-md"></span>
+      </div>
+    </div>
+  </section>
+
+  {# API usage summary #}
+  <section>
+    <h2 class="text-lg font-semibold mb-3">用量統計</h2>
+    <div
+      hx-get="/report/partials/usage"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+      hx-vals='js:{"user_id": getUserId()}'
+    >
+      <div class="flex justify-center py-8">
+        <span class="loading loading-dots loading-md"></span>
+      </div>
+    </div>
+  </section>
+
+  {# Assessment history list #}
+  <section>
+    <h2 class="text-lg font-semibold mb-3">評估歷史</h2>
+    <div
+      hx-get="/report/partials/history"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+      hx-vals='js:{"user_id": getUserId()}'
+    >
+      <div class="flex justify-center py-8">
+        <span class="loading loading-dots loading-md"></span>
+      </div>
+    </div>
+  </section>
+
+</div>
+{% endblock %}
