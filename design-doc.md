@@ -443,6 +443,43 @@ api_usage (
 | 部署 | VPS | 單機部署、.env 管 API key |
 | 模型配置 | Settings + /api/settings 端點 | Claude / Gemini 模型可從前端切換，定價表隨模型連動 |
 
+## 使用者識別
+
+小圈子使用，不做完整認證系統，以暱稱識別使用者。
+
+**流程：**
+
+```
+首次進站
+   │
+   ▼
+彈出 modal → 輸入暱稱（唯一）
+   │
+   ▼
+POST /api/users → 建立 user row（UUID + display_name）
+   │
+   ▼
+存 localStorage（persochattai_user_id + persochattai_display_name）
+   │
+   ▼
+後續進站 → localStorage 有值就直接用，navbar 顯示暱稱
+```
+
+**規則：**
+
+| 項目 | 規則 |
+|------|------|
+| 暱稱唯一性 | 唯一，重複回傳 409 |
+| 暱稱格式 | 1-20 字，不限字元類型 |
+| 認證機制 | 無密碼，純暱稱識別 |
+| 切換使用者 | navbar「換人」→ 清除 localStorage → 重新輸入暱稱 |
+| 已存在暱稱 | 視為同一人，回傳該 user 的 UUID |
+
+**解決的問題：**
+- `conversations.user_id` FK 約束需要 `users` 表有對應 row
+- 前端 `getUserId()` 產生的 UUID 未寫入 DB
+- 報告、評估歷史需要穩定的 user_id 關聯
+
 ## MVP 範圍
 
 1. **Podcast 爬取 + 卡片生成** — All Ears English + BBC 6 Minute English
