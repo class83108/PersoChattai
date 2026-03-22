@@ -11,7 +11,7 @@ from sqlalchemy import text
 load_dotenv()
 
 _DB_URL = os.environ.get('DB_URL', '')
-pytestmark = pytest.mark.skipif(not _DB_URL, reason='DB_URL 未設定')
+pytestmark = pytest.mark.skipif(not _DB_URL or '://' not in _DB_URL, reason='DB_URL 未設定')
 
 
 class TestInitEngineIntegration:

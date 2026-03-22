@@ -33,12 +33,13 @@ load_dotenv()
 _TEST_DB_URL = os.environ.get('TEST_DB_URL', '')
 if not _TEST_DB_URL:
     _base_url = os.environ.get('DB_URL', '')
-    if _base_url:
+    if _base_url and '://' in _base_url:
         _TEST_DB_URL = _base_url.rsplit('/', 1)[0] + '/persochattai_test'
 
-_ASYNC_URL = _TEST_DB_URL.replace('postgresql://', 'postgresql+asyncpg://', 1)
+_HAS_DB = bool(_TEST_DB_URL and '://' in _TEST_DB_URL)
+_ASYNC_URL = _TEST_DB_URL.replace('postgresql://', 'postgresql+asyncpg://', 1) if _HAS_DB else ''
 
-pytestmark = pytest.mark.skipif(not _TEST_DB_URL, reason='TEST_DB_URL 或 DB_URL 未設定')
+pytestmark = pytest.mark.skipif(not _HAS_DB, reason='TEST_DB_URL 或 DB_URL 未設定')
 
 _DB_CREATED = False
 
@@ -88,6 +89,8 @@ _TABLE_NAMES = [
 @pytest_asyncio.fixture
 async def engine() -> AsyncGenerator[AsyncEngine]:
     """每個測試一個 engine，避免 event loop 問題。"""
+    if not _HAS_DB:
+        pytest.skip('TEST_DB_URL 或 DB_URL 未設定')
     await _ensure_test_db()
     test_engine = create_async_engine(_ASYNC_URL, pool_size=5, max_overflow=0)
     yield test_engine
