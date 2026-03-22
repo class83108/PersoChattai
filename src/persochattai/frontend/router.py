@@ -49,11 +49,21 @@ async def report(request: Request) -> Any:
 
 # --- HTMX partial routes (materials) ---
 
-_API_BASE = 'http://localhost:8000'
-
 
 def _api_url(path: str, request: Request) -> str:
-    base = str(request.base_url).rstrip('/')
+    """Build internal API URL from the app's own base URL.
+
+    Uses scheme + server from the ASGI scope (not the Host header)
+    to prevent host-header injection.
+    """
+    scope = request.scope
+    scheme = scope.get('scheme', 'http')
+    server = scope.get('server')
+    if server:
+        host, port = server
+        base = f'{scheme}://{host}:{port}'
+    else:
+        base = f'{scheme}://127.0.0.1:8000'
     return f'{base}{path}'
 
 

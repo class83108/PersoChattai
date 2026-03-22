@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -22,6 +23,35 @@ def client() -> TestClient:
     )
     app = create_app(settings)
     return TestClient(app, raise_server_exceptions=False)
+
+
+def _mock_request(method: str, url: str) -> httpx.Request:
+    return httpx.Request(method, url)
+
+
+@contextmanager
+def _mock_api(
+    method: str = 'get',
+    json: Any = None,
+    status_code: int = 200,
+):
+    """Context manager that patches httpx.AsyncClient to return a mock response."""
+    mock_resp = httpx.Response(
+        status_code,
+        json=json,
+        request=_mock_request(method.upper(), 'http://test'),
+    )
+    with patch('persochattai.frontend.router.httpx.AsyncClient') as mock_cls:
+        mock_client = AsyncMock()
+        handler = AsyncMock(return_value=mock_resp)
+        if method == 'get':
+            mock_client.get = handler
+        else:
+            mock_client.post = handler
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_cls.return_value = mock_client
+        yield mock_client
 
 
 # --- Page routes ---
@@ -68,17 +98,92 @@ class TestMaterialsPartials:
         resp = client.get('/materials/partials/card-list')
         assert resp.status_code == 200
 
-    def test_card_list_with_filters(self, client: TestClient) -> None:
+    def test_card_list_with_all_filters(self, client: TestClient) -> None:
+        """所有篩選參數都傳入時仍回 200。"""
         resp = client.get(
             '/materials/partials/card-list',
-            params={'source_type': 'podcast', 'difficulty': 'B1', 'keyword': 'test'},
+            params={
+                'source_type': 'podcast',
+                'difficulty': 'B1',
+                'keyword': 'test',
+                'tag': 'tech',
+            },
         )
         assert resp.status_code == 200
 
-    def test_card_list_api_error_graceful(self, client: TestClient) -> None:
-        """API 連線失敗時仍回傳空列表（graceful degradation）。"""
-        resp = client.get('/materials/partials/card-list')
+    def test_card_list_api_non_200(self, client: TestClient) -> None:
+        """API 回 500 時仍 graceful degradation。"""
+        with _mock_api(json={'detail': 'error'}, status_code=500):
+            resp = client.get('/materials/partials/card-list')
+            assert resp.status_code == 200
+
+    def test_upload_pdf_success(self, client: TestClient) -> None:
+        """上傳 PDF 成功時渲染結果。"""
+        mock_data = {'cards': [{'id': '1', 'title': 'PDF Card'}]}
+        with _mock_api(method='post', json=mock_data):
+            resp = client.post(
+                '/materials/upload-pdf',
+                files={'file': ('test.pdf', b'%PDF-fake', 'application/pdf')},
+            )
+            assert resp.status_code == 200
+
+    def test_upload_pdf_api_error(self, client: TestClient) -> None:
+        """上傳 PDF API 回錯誤時顯示錯誤訊息。"""
+        with _mock_api(method='post', json={'detail': '格式錯誤'}, status_code=400):
+            resp = client.post(
+                '/materials/upload-pdf',
+                files={'file': ('bad.pdf', b'not-pdf', 'application/pdf')},
+            )
+            assert resp.status_code == 200
+            assert '格式錯誤' in resp.text
+
+    def test_upload_pdf_connection_error(self, client: TestClient) -> None:
+        """上傳 PDF API 連線失敗時 graceful degradation。"""
+        resp = client.post(
+            '/materials/upload-pdf',
+            files={'file': ('test.pdf', b'%PDF-fake', 'application/pdf')},
+        )
         assert resp.status_code == 200
+        assert '上傳失敗' in resp.text
+
+    def test_free_topic_success(self, client: TestClient) -> None:
+        """自由主題提交成功。"""
+        mock_data = {'card': {'id': '1', 'title': 'Free Topic Card'}}
+        with _mock_api(method='post', json=mock_data):
+            resp = client.post(
+                '/materials/free-topic',
+                json={'topic': 'AI in education', 'difficulty': 'B2'},
+            )
+            assert resp.status_code == 200
+
+    def test_free_topic_api_error(self, client: TestClient) -> None:
+        """自由主題 API 回錯誤時顯示錯誤訊息。"""
+        with _mock_api(method='post', json={'detail': '主題無效'}, status_code=400):
+            resp = client.post(
+                '/materials/free-topic',
+                json={'topic': ''},
+            )
+            assert resp.status_code == 200
+            assert '主題無效' in resp.text
+
+    def test_free_topic_connection_error(self, client: TestClient) -> None:
+        """自由主題 API 連線失敗時 graceful degradation。"""
+        resp = client.post(
+            '/materials/free-topic',
+            json={'topic': 'test'},
+        )
+        assert resp.status_code == 200
+        assert '提交失敗' in resp.text
+
+    def test_free_topic_returns_cards_list(self, client: TestClient) -> None:
+        """自由主題 API 回傳 cards 列表時正確處理。"""
+        mock_data = {'cards': [{'id': '1', 'title': 'Card A'}, {'id': '2', 'title': 'Card B'}]}
+        with _mock_api(method='post', json=mock_data):
+            resp = client.post(
+                '/materials/free-topic',
+                json={'topic': 'AI'},
+            )
+            assert resp.status_code == 200
 
 
 # --- Roleplay partials ---
@@ -94,6 +199,13 @@ class TestRoleplayPartials:
         """API 不可用時仍回傳 200。"""
         resp = client.get('/roleplay/partials/history', params={'user_id': 'u-123'})
         assert resp.status_code == 200
+
+    def test_history_renders_conversations(self, client: TestClient) -> None:
+        """proxy 回傳對話歷史時渲染列表。"""
+        mock_data = [{'id': 'c-1', 'status': 'completed', 'created_at': '2026-03-20'}]
+        with _mock_api(json=mock_data):
+            resp = client.get('/roleplay/partials/history', params={'user_id': 'u-1'})
+            assert resp.status_code == 200
 
 
 # --- Report partials ---
@@ -136,14 +248,7 @@ class TestReportPartials:
             'fluency_score': 7.0,
             'grammar_score': 5.5,
         }
-        mock_resp = httpx.Response(200, json=mock_data, request=httpx.Request('GET', 'http://test'))
-        with patch('persochattai.frontend.router.httpx.AsyncClient') as mock_cls:
-            mock_client = AsyncMock()
-            mock_client.get = AsyncMock(return_value=mock_resp)
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_cls.return_value = mock_client
-
+        with _mock_api(json=mock_data):
             resp = client.get('/report/partials/overview', params={'user_id': 'u-1'})
             assert resp.status_code == 200
             assert 'B2' in resp.text
@@ -159,14 +264,7 @@ class TestReportPartials:
                 'grammar_score': 5.0,
             }
         ]
-        mock_resp = httpx.Response(200, json=mock_data, request=httpx.Request('GET', 'http://test'))
-        with patch('persochattai.frontend.router.httpx.AsyncClient') as mock_cls:
-            mock_client = AsyncMock()
-            mock_client.get = AsyncMock(return_value=mock_resp)
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_cls.return_value = mock_client
-
+        with _mock_api(json=mock_data):
             resp = client.get('/report/partials/history', params={'user_id': 'u-1'})
             assert resp.status_code == 200
             assert 'B1' in resp.text
@@ -174,14 +272,7 @@ class TestReportPartials:
     def test_vocabulary_renders_stats(self, client: TestClient) -> None:
         """proxy 回傳詞彙統計時渲染。"""
         mock_data = {'total_words': 1500, 'new_word_rate': 0.12, 'k1_ratio': 0.85}
-        mock_resp = httpx.Response(200, json=mock_data, request=httpx.Request('GET', 'http://test'))
-        with patch('persochattai.frontend.router.httpx.AsyncClient') as mock_cls:
-            mock_client = AsyncMock()
-            mock_client.get = AsyncMock(return_value=mock_resp)
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_cls.return_value = mock_client
-
+        with _mock_api(json=mock_data):
             resp = client.get('/report/partials/vocabulary', params={'user_id': 'u-1'})
             assert resp.status_code == 200
             assert '1500' in resp.text
@@ -189,14 +280,28 @@ class TestReportPartials:
     def test_usage_renders_summary(self, client: TestClient) -> None:
         """proxy 回傳用量資料時渲染。"""
         mock_data = {'total_tokens': 50000, 'total_cost': 1.2345, 'total_requests': 42}
-        mock_resp = httpx.Response(200, json=mock_data, request=httpx.Request('GET', 'http://test'))
-        with patch('persochattai.frontend.router.httpx.AsyncClient') as mock_cls:
-            mock_client = AsyncMock()
-            mock_client.get = AsyncMock(return_value=mock_resp)
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_cls.return_value = mock_client
-
+        with _mock_api(json=mock_data):
             resp = client.get('/report/partials/usage', params={'user_id': 'u-1'})
             assert resp.status_code == 200
             assert '50,000' in resp.text
+
+
+# --- _api_url ---
+
+
+class TestApiUrl:
+    def test_api_url_builds_from_scope(self, client: TestClient) -> None:
+        """_api_url 使用 ASGI scope 而非 Host header。"""
+        from persochattai.frontend.router import _api_url
+
+        scope = {'type': 'http', 'scheme': 'http', 'server': ('127.0.0.1', 8000)}
+        mock_request = type('R', (), {'scope': scope})()
+        assert _api_url('/api/test', mock_request) == 'http://127.0.0.1:8000/api/test'
+
+    def test_api_url_fallback_without_server(self, client: TestClient) -> None:
+        """沒有 server 時 fallback 到 127.0.0.1:8000。"""
+        from persochattai.frontend.router import _api_url
+
+        scope = {'type': 'http', 'scheme': 'http'}
+        mock_request = type('R', (), {'scope': scope})()
+        assert _api_url('/api/test', mock_request) == 'http://127.0.0.1:8000/api/test'
