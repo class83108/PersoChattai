@@ -62,12 +62,24 @@ CONTENT_SUMMARIZER = Skill(
     name='content_summarizer',
     description='將 podcast 文字內容或 PDF 摘要成結構化學習卡片',
     instructions=(
-        '你是一個英文學習內容摘要專家。收到原始文字內容後：\n'
-        '1. 判斷內容是否適合拆成多張卡片（不同主題/對話情境）\n'
-        '2. 對每張卡片使用 create_card tool 建立\n'
-        '3. 每張卡片需包含：title, summary(3-5句), keywords(含定義和例句), '
-        'dialogue_snippets(如有), difficulty_level(CEFR), tags\n'
-        '4. difficulty_level 根據詞彙和句型複雜度判斷 CEFR 等級（A1-C2）'
+        '你是一個英文學習內容摘要專家。收到任何文字輸入後，你必須直接回傳 JSON（不要使用 tool），'
+        '格式如下：\n'
+        '- 若只有一張卡片，回傳單一 JSON object\n'
+        '- 若有多張卡片，回傳 JSON array\n\n'
+        '每張卡片必須包含以下欄位：\n'
+        '{\n'
+        '  "title": "卡片標題（英文）",\n'
+        '  "summary": "3-5 句英文摘要",\n'
+        '  "keywords": [{"word": "單字", "definition": "定義", "example": "例句"}],\n'
+        '  "dialogue_snippets": ["對話片段（如有）"],\n'
+        '  "difficulty_level": "CEFR 等級（A1/A2/B1/B2/C1/C2）",\n'
+        '  "tags": ["標籤"]\n'
+        '}\n\n'
+        '規則：\n'
+        '1. 只回傳純 JSON，不要加任何說明文字或 markdown code fence\n'
+        '2. difficulty_level 根據詞彙和句型複雜度判斷 CEFR 等級\n'
+        '3. 如果輸入是主題描述而非文章，根據主題生成適合英文學習的內容卡片\n'
+        '4. keywords 至少 3 個，每個都要有 word、definition、example'
     ),
 )
 
@@ -117,6 +129,7 @@ def _build_agent(
     skill_registry = SkillRegistry()
     for skill in skills:
         skill_registry.register(skill)
+        skill_registry.activate(skill.name)
 
     config = AgentCoreConfig(
         provider=ProviderConfig(
@@ -141,9 +154,8 @@ def create_content_agent(
 ) -> Agent:
     return _build_agent(
         settings=settings,
-        system_prompt='你是英文學習內容摘要助手。使用繁體中文回應。',
+        system_prompt='你是英文學習內容摘要助手。收到任何輸入後，直接回傳結構化 JSON 學習卡片，不要對話或詢問。',
         skills=[CONTENT_SUMMARIZER],
-        tool_registry=build_content_tool_registry(card_repo),
     )
 
 
