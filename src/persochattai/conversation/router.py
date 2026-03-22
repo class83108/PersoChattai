@@ -28,6 +28,13 @@ async def conversation_health() -> dict[str, str]:
 async def start_conversation(body: StartConversationRequest, request: Request) -> dict[str, Any]:
     manager = _get_manager(request)
 
+    # Verify user exists
+    user_repo = getattr(request.app.state, 'user_repository', None)
+    if user_repo:
+        user = await user_repo.get_by_id(body.user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail='使用者不存在，請先建立帳號')
+
     has_active = await manager.has_active_conversation(body.user_id)
     if has_active:
         raise HTTPException(status_code=409, detail='使用者已有進行中的對話')

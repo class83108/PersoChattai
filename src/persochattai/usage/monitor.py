@@ -29,13 +29,16 @@ class ExtendedUsageMonitor(UsageMonitor):
     repository: UsageRepositoryProtocol | None = field(default=None, repr=False)
     model_config_repo: ModelConfigRepositoryProtocol | None = field(default=None, repr=False)
     _pricing_cache: dict[str, dict[str, Any]] = field(default_factory=dict, repr=False)
+    _pending_tasks: set[asyncio.Task[None]] = field(default_factory=set, repr=False)
 
     def record(self, usage: Any) -> Any:
         result = super().record(usage)
         if result is not None and self.repository is not None:
             try:
                 loop = asyncio.get_running_loop()
-                loop.create_task(self.repository.save_token_record(result, model=self.model))
+                task = loop.create_task(self.repository.save_token_record(result, model=self.model))
+                self._pending_tasks.add(task)
+                task.add_done_callback(self._pending_tasks.discard)
             except RuntimeError:
                 pass
         return result

@@ -13,12 +13,13 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from persochattai.assessment.repository import AssessmentRepository
-from persochattai.content.repository import CardRepository
 from persochattai.assessment.snapshot_repository import LevelSnapshotRepository
 from persochattai.assessment.vocabulary_repository import UserVocabularyRepository
+from persochattai.content.repository import CardRepository
 from persochattai.conversation.repository import ConversationRepository
 from persochattai.usage.model_config_repository import ModelConfigRepository
 from persochattai.usage.repository import UsageRepository
+from persochattai.user.repository import UserRepository
 
 
 class _SessionMethodWrapper:
@@ -160,6 +161,25 @@ class CardRepositoryWrapper(_SessionMethodWrapper):
         async with self._factory() as session:
             repo = CardRepository(session)
             return await repo.exists_by_url(source_url)
+
+
+class UserRepositoryWrapper(_SessionMethodWrapper):
+    async def create(self, display_name: str) -> dict[str, Any]:
+        async with self._factory() as session:
+            repo = UserRepository(session)
+            result = await repo.create(display_name)
+            await session.commit()
+            return result
+
+    async def get_by_id(self, user_id: str) -> dict[str, Any] | None:
+        async with self._factory() as session:
+            repo = UserRepository(session)
+            return await repo.get_by_id(user_id)
+
+    async def get_by_display_name(self, display_name: str) -> dict[str, Any] | None:
+        async with self._factory() as session:
+            repo = UserRepository(session)
+            return await repo.get_by_display_name(display_name)
 
 
 class UsageRepositoryWrapper(_SessionMethodWrapper):

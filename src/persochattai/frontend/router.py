@@ -219,6 +219,12 @@ async def free_topic_partial(request: Request) -> Any:
 # --- HTMX partial routes (roleplay) ---
 
 
+@router.get('/roleplay/partials/card-picker', response_class=HTMLResponse)
+async def card_picker_partial(request: Request) -> Any:
+    cards = await _proxy_get(request, '/api/content/cards', params={'limit': 50}) or []
+    return _render(request, 'partials/card_picker.html', {'cards': cards})
+
+
 @router.get('/roleplay/partials/history', response_class=HTMLResponse)
 async def conversation_history_partial(
     request: Request,
