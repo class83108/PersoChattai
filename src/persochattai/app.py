@@ -14,21 +14,23 @@ from persochattai.agent_factory import (
     get_usage_monitor,
     init_usage_monitor,
 )
-from persochattai.assessment.repository import AssessmentRepository
 from persochattai.assessment.router import router as assessment_router
 from persochattai.assessment.service import AssessmentService
-from persochattai.assessment.snapshot_repository import LevelSnapshotRepository
-from persochattai.assessment.vocabulary_repository import UserVocabularyRepository
 from persochattai.config import Settings
 from persochattai.content.router import router as content_router
 from persochattai.content.scheduler import ContentScheduler
 from persochattai.conversation.manager import ConversationManager
-from persochattai.conversation.repository import ConversationRepository
 from persochattai.conversation.router import router as conversation_router
 from persochattai.conversation.stream import mount_conversation_stream
-from persochattai.db import close_pool, get_pool, init_pool
-from persochattai.usage.model_config_repository import ModelConfigRepository
-from persochattai.usage.repository import UsageRepository
+from persochattai.database.engine import dispose_engine, get_session_factory, init_engine
+from persochattai.database.session_wrapper import (
+    AssessmentRepositoryWrapper,
+    ConversationRepositoryWrapper,
+    ModelConfigRepositoryWrapper,
+    SnapshotRepositoryWrapper,
+    UsageRepositoryWrapper,
+    VocabularyRepositoryWrapper,
+)
 from persochattai.usage.router import router as usage_router
 
 logger = logging.getLogger(__name__)
@@ -37,25 +39,27 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
-    await init_pool(settings.db_url)
-    pool = get_pool()
 
-    # Model config & usage monitor
-    model_config_repo = ModelConfigRepository(pool)
+    # 1. SQLAlchemy engine + session factory
+    init_engine(settings.db_url)
+    factory = get_session_factory()
+
+    # 2. Model config & usage monitor
+    model_config_repo = ModelConfigRepositoryWrapper(factory)
     await model_config_repo.seed_defaults()
     app.state.model_config_repo = model_config_repo
 
-    usage_repo = UsageRepository(pool)
+    usage_repo = UsageRepositoryWrapper(factory)
     monitor = init_usage_monitor(
         repository=usage_repo,
         model_config_repo=model_config_repo,
     )
     await monitor.load_history()
 
-    # Assessment service
-    assessment_repo = AssessmentRepository(pool)
-    vocabulary_repo = UserVocabularyRepository(pool)
-    snapshot_repo = LevelSnapshotRepository(pool)
+    # 3. Assessment service
+    assessment_repo = AssessmentRepositoryWrapper(factory)
+    vocabulary_repo = VocabularyRepositoryWrapper(factory)
+    snapshot_repo = SnapshotRepositoryWrapper(factory)
     assessment_service = AssessmentService(
         assessment_repo=assessment_repo,
         vocabulary_repo=vocabulary_repo,
@@ -64,11 +68,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     assessment_service._agent = create_assessment_agent(settings, assessment_service)  # type: ignore[assignment]
 
-    # Conversation manager
-    conv_repo = ConversationRepository(pool)
+    # 4. Conversation manager
+    conv_repo = ConversationRepositoryWrapper(factory)
 
     async def _scenario_designer(source_type: str, source_ref: str) -> str:
-        # Placeholder: 未來由 BYOA Agent 生成 system instruction
         return f'You are an English tutor. Topic: {source_type}/{source_ref}'
 
     conversation_manager = ConversationManager(
@@ -79,10 +82,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     app.state.conversation_manager = conversation_manager
 
-    # FastRTC WebRTC stream
+    # 5. FastRTC WebRTC stream
     mount_conversation_stream(app, model=settings.gemini_model)
 
-    # Content scheduler
+    # 6. Content scheduler
     scheduler = ContentScheduler()
     scheduler.start()
     app.state.content_scheduler = scheduler
@@ -91,7 +94,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
     scheduler.shutdown()
-    await close_pool()
+    await dispose_engine()
     logger.info('App 已關閉')
 
 

@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from agent_core.usage_monitor import UsageRecord
 from pytest_bdd import given, parsers, scenarios, then, when
+
+from tests.helpers import make_mock_session
 
 scenarios('features/usage_persistence.feature')
 
@@ -49,44 +50,38 @@ def _make_audio_record(duration: float = 10.0, direction: str = 'input') -> Any:
     )
 
 
-def _make_mock_pool() -> tuple[AsyncMock, AsyncMock]:
-    """建立支援 async with pool.acquire() as conn 的 mock。"""
-    pool = AsyncMock()
-    conn = AsyncMock()
-    conn.fetchrow = AsyncMock(return_value=None)
-    conn.fetch = AsyncMock(return_value=[])
+def _make_token_row(input_tokens: int = 50, output_tokens: int = 25) -> MagicMock:
+    row = MagicMock()
+    row.input_tokens = input_tokens
+    row.output_tokens = output_tokens
+    row.cache_creation_input_tokens = 0
+    row.cache_read_input_tokens = 0
+    row.created_at = datetime.now(tz=UTC)
+    return row
 
-    @asynccontextmanager
-    async def _acquire():  # type: ignore[no-untyped-def]
-        yield conn
 
-    pool.acquire = _acquire
-    return pool, conn
+def _make_audio_row(duration: float = 10.0, direction: str = 'input') -> MagicMock:
+    row = MagicMock()
+    row.audio_duration_sec = duration
+    row.direction = direction
+    row.model = 'gemini-2.0-flash'
+    row.created_at = datetime.now(tz=UTC)
+    return row
 
 
 # --- Fixtures ---
 
 
 @pytest.fixture
-def mock_pool_and_conn() -> tuple[AsyncMock, AsyncMock]:
-    return _make_mock_pool()
+def mock_session() -> AsyncMock:
+    return make_mock_session()
 
 
 @pytest.fixture
-def mock_pool(mock_pool_and_conn: tuple[AsyncMock, AsyncMock]) -> AsyncMock:
-    return mock_pool_and_conn[0]
-
-
-@pytest.fixture
-def mock_conn(mock_pool_and_conn: tuple[AsyncMock, AsyncMock]) -> AsyncMock:
-    return mock_pool_and_conn[1]
-
-
-@pytest.fixture
-def repo(mock_pool: AsyncMock) -> Any:
+def repo(mock_session: AsyncMock) -> Any:
     from persochattai.usage.repository import UsageRepository
 
-    return UsageRepository(mock_pool)
+    return UsageRepository(mock_session)
 
 
 @pytest.fixture
@@ -124,60 +119,52 @@ def given_repo(repo: Any) -> None:
     parsers.parse('呼叫 save_token_record 帶入一筆 UsageRecord 和 model "{model}"'),
     target_fixture='result',
 )
-def when_save_token(repo: Any, mock_conn: AsyncMock, model: str) -> dict[str, Any]:
+def when_save_token(repo: Any, mock_session: AsyncMock, model: str) -> dict[str, Any]:
     record = _make_usage_record(input_tokens=100, output_tokens=50)
     _run(repo.save_token_record(record, model=model))
-    return {'conn': mock_conn, 'record': record}
+    return {'session': mock_session, 'record': record}
 
 
 @then(parsers.parse('DB 收到一筆 usage_type "{usage_type}" 的 INSERT'))
 def then_db_insert(result: dict[str, Any], usage_type: str) -> None:
-    conn = result['conn']
-    conn.fetchrow.assert_called_once()
-    call_args = conn.fetchrow.call_args
-    sql = call_args[0][0]
-    assert 'INSERT' in sql.upper()
-    assert usage_type in call_args[0]
+    session = result['session']
+    session.add.assert_called_once()
+    added_obj = session.add.call_args[0][0]
+    assert added_obj.usage_type == usage_type
 
 
 @then('包含正確的 input_tokens 和 output_tokens')
 def then_correct_tokens(result: dict[str, Any]) -> None:
-    call_args = result['conn'].fetchrow.call_args[0]
-    assert 100 in call_args
-    assert 50 in call_args
+    added_obj = result['session'].add.call_args[0][0]
+    assert added_obj.input_tokens == 100
+    assert added_obj.output_tokens == 50
 
 
 @when('呼叫 save_audio_record 帶入一筆 GeminiAudioRecord', target_fixture='result')
-def when_save_audio(repo: Any, mock_conn: AsyncMock) -> dict[str, Any]:
+def when_save_audio(repo: Any, mock_session: AsyncMock) -> dict[str, Any]:
     record = _make_audio_record(duration=20.0, direction='output')
     _run(repo.save_audio_record(record))
-    return {'conn': mock_conn, 'record': record}
+    return {'session': mock_session, 'record': record}
 
 
 @then('包含正確的 audio_duration_sec 和 direction')
 def then_correct_audio(result: dict[str, Any]) -> None:
-    call_args = result['conn'].fetchrow.call_args[0]
-    assert 20.0 in call_args
-    assert 'output' in call_args
+    added_obj = result['session'].add.call_args[0][0]
+    assert added_obj.audio_duration_sec == 20.0
+    assert added_obj.direction == 'output'
 
 
 # --- Rule: UsageRepository 載入歷史紀錄 ---
 
 
 @given(parsers.parse('DB 有 {n:d} 筆 token 紀錄'))
-def given_db_token_records(mock_conn: AsyncMock, n: int) -> None:
-    rows = []
-    for i in range(n):
-        rows.append(
-            {
-                'input_tokens': 50 + i,
-                'output_tokens': 25,
-                'cache_creation_input_tokens': 0,
-                'cache_read_input_tokens': 0,
-                'created_at': datetime.now(tz=UTC),
-            }
-        )
-    mock_conn.fetch = AsyncMock(return_value=rows)
+def given_db_token_records(mock_session: AsyncMock, n: int) -> None:
+    rows = [_make_token_row(50 + i, 25) for i in range(n)]
+    mock_scalars = MagicMock()
+    mock_scalars.all.return_value = rows
+    mock_result = MagicMock()
+    mock_result.scalars.return_value = mock_scalars
+    mock_session.execute = AsyncMock(return_value=mock_result)
 
 
 @when(parsers.parse('呼叫 load_token_records(days={days:d})'), target_fixture='result')
@@ -194,18 +181,13 @@ def then_n_usage_records(result: dict[str, Any], n: int) -> None:
 
 
 @given(parsers.parse('DB 有 {n:d} 筆 audio 紀錄'))
-def given_db_audio_records(mock_conn: AsyncMock, n: int) -> None:
-    rows = []
-    for i in range(n):
-        rows.append(
-            {
-                'audio_duration_sec': 10.0 + i,
-                'direction': 'input',
-                'model': 'gemini-2.0-flash',
-                'created_at': datetime.now(tz=UTC),
-            }
-        )
-    mock_conn.fetch = AsyncMock(return_value=rows)
+def given_db_audio_records(mock_session: AsyncMock, n: int) -> None:
+    rows = [_make_audio_row(10.0 + i, 'input') for i in range(n)]
+    mock_scalars = MagicMock()
+    mock_scalars.all.return_value = rows
+    mock_result = MagicMock()
+    mock_result.scalars.return_value = mock_scalars
+    mock_session.execute = AsyncMock(return_value=mock_result)
 
 
 @when(parsers.parse('呼叫 load_audio_records(days={days:d})'), target_fixture='result')
@@ -224,8 +206,12 @@ def then_n_audio_records(result: dict[str, Any], n: int) -> None:
 
 
 @given('DB 無任何紀錄')
-def given_db_empty(mock_conn: AsyncMock) -> None:
-    mock_conn.fetch = AsyncMock(return_value=[])
+def given_db_empty(mock_session: AsyncMock) -> None:
+    mock_scalars = MagicMock()
+    mock_scalars.all.return_value = []
+    mock_result = MagicMock()
+    mock_result.scalars.return_value = mock_scalars
+    mock_session.execute = AsyncMock(return_value=mock_result)
 
 
 @then('回傳空列表')
