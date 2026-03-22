@@ -10,11 +10,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 from persochattai.app import create_app
+from persochattai.config import Settings
 
 
 @pytest.fixture
 def client() -> TestClient:
-    app = create_app()
+    settings = Settings(
+        db_url='postgresql://localhost/test',
+        anthropic_api_key='sk-test',
+        gemini_api_key='ai-test',
+    )
+    app = create_app(settings)
     return TestClient(app, raise_server_exceptions=False)
 
 
