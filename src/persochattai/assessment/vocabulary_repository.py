@@ -1,46 +1,53 @@
-"""User vocabulary DB repository。"""
+"""User vocabulary DB repository — SQLAlchemy 實作。"""
 
 from __future__ import annotations
 
 from typing import Any
 
-import asyncpg
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from persochattai.database.tables import UserVocabularyTable
 
 
 class UserVocabularyRepository:
-    def __init__(self, pool: asyncpg.Pool) -> None:
-        self._pool = pool
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
 
     async def upsert_words(self, *, user_id: str, words: list[str], conversation_id: str) -> None:
         if not words:
             return
-        async with self._pool.acquire() as conn:
-            await conn.executemany(
-                """
-                INSERT INTO user_vocabulary (user_id, word, first_seen_conversation_id)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (user_id, word)
-                DO UPDATE SET occurrence_count = user_vocabulary.occurrence_count + 1
-                """,
-                [(user_id, word, conversation_id) for word in words],
+        for word in words:
+            stmt = insert(UserVocabularyTable).values(
+                user_id=user_id,
+                word=word,
+                first_seen_conversation_id=conversation_id,
             )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=['user_id', 'word'],
+                set_={'occurrence_count': UserVocabularyTable.occurrence_count + 1},
+            )
+            await self._session.execute(stmt)
+        await self._session.flush()
 
     async def get_vocabulary_stats(self, user_id: str) -> dict[str, Any]:
-        async with self._pool.acquire() as conn:
-            total = await conn.fetchval(
-                'SELECT COUNT(*) FROM user_vocabulary WHERE user_id = $1',
-                user_id,
-            )
-            rows = await conn.fetch(
-                """
-                SELECT word FROM user_vocabulary
-                WHERE user_id = $1
-                ORDER BY first_seen_at DESC
-                LIMIT 20
-                """,
-                user_id,
-            )
-            return {
-                'total_words': int(total),
-                'recent_words': [row['word'] for row in rows],
-            }
+        total_stmt = (
+            select(func.count())
+            .select_from(UserVocabularyTable)
+            .where(UserVocabularyTable.user_id == user_id)
+        )
+        total_result = await self._session.execute(total_stmt)
+        total = int(total_result.scalar() or 0)
+
+        recent_stmt = (
+            select(UserVocabularyTable.word)
+            .where(UserVocabularyTable.user_id == user_id)
+            .order_by(UserVocabularyTable.first_seen_at.desc())
+            .limit(20)
+        )
+        recent_result = await self._session.execute(recent_stmt)
+        return {
+            'total_words': total,
+            'recent_words': [row[0] for row in recent_result.all()],
+        }

@@ -1,4 +1,4 @@
-"""模型配置 Repository — asyncpg 實作。"""
+"""模型配置 Repository — SQLAlchemy 實作。"""
 
 from __future__ import annotations
 
@@ -7,8 +7,11 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-import asyncpg
+from sqlalchemy import delete, select, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from persochattai.database.tables import ModelConfigTable
 from persochattai.usage.schemas import ModelConfig
 
 logger = logging.getLogger(__name__)
@@ -69,170 +72,144 @@ _DEFAULT_GEMINI_MODELS: list[dict[str, Any]] = [
 ]
 
 
-def _row_to_model(row: dict[str, Any]) -> ModelConfig:
-    pricing = row['pricing']
+def _row_to_model(row: ModelConfigTable) -> ModelConfig:
+    pricing = row.pricing
     if isinstance(pricing, str):
         pricing = json.loads(pricing)
     return ModelConfig(
-        id=str(row['id']),
-        provider=row['provider'],
-        model_id=row['model_id'],
-        display_name=row['display_name'],
-        is_active=row['is_active'],
+        id=str(row.id),
+        provider=row.provider,
+        model_id=row.model_id,
+        display_name=row.display_name,
+        is_active=row.is_active,
         pricing=pricing,
-        created_at=row.get('created_at'),
-        updated_at=row.get('updated_at'),
+        created_at=row.created_at,
+        updated_at=row.updated_at,
     )
 
 
 class ModelConfigRepository:
-    def __init__(self, pool: asyncpg.Pool) -> None:
-        self._pool = pool
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
 
     async def seed_defaults(self) -> None:
-        async with self._pool.acquire() as conn:
-            count = await conn.fetchval('SELECT COUNT(*) FROM model_config')
-            if count > 0:
-                return
+        from sqlalchemy import func
 
-            for model_data in _DEFAULT_CLAUDE_MODELS + _DEFAULT_GEMINI_MODELS:
-                await conn.fetchrow(
-                    """
-                    INSERT INTO model_config (provider, model_id, display_name, is_active, pricing)
-                    VALUES ($1, $2, $3, $4, $5::jsonb)
-                    RETURNING *
-                    """,
-                    model_data['provider'],
-                    model_data['model_id'],
-                    model_data['display_name'],
-                    model_data['is_active'],
-                    json.dumps(model_data['pricing']),
-                )
+        count_stmt = select(func.count()).select_from(ModelConfigTable)
+        result = await self._session.execute(count_stmt)
+        count = result.scalar() or 0
+        if count > 0:
+            return
+
+        for model_data in _DEFAULT_CLAUDE_MODELS + _DEFAULT_GEMINI_MODELS:
+            row = ModelConfigTable(
+                provider=model_data['provider'],
+                model_id=model_data['model_id'],
+                display_name=model_data['display_name'],
+                is_active=model_data['is_active'],
+                pricing=model_data['pricing'],
+            )
+            self._session.add(row)
+        await self._session.flush()
 
         total = len(_DEFAULT_CLAUDE_MODELS) + len(_DEFAULT_GEMINI_MODELS)
         logger.info('已 seed %d 筆預設模型配置', total)
 
     async def list_models(self, *, provider: str | None = None) -> list[ModelConfig]:
-        async with self._pool.acquire() as conn:
-            if provider is not None:
-                rows = await conn.fetch(
-                    'SELECT * FROM model_config WHERE provider = $1 ORDER BY created_at',
-                    provider,
-                )
-            else:
-                rows = await conn.fetch('SELECT * FROM model_config ORDER BY created_at')
-            return [_row_to_model(r) for r in rows]
+        stmt = select(ModelConfigTable).order_by(ModelConfigTable.created_at)
+        if provider is not None:
+            stmt = stmt.where(ModelConfigTable.provider == provider)
+        result = await self._session.execute(stmt)
+        return [_row_to_model(r) for r in result.scalars().all()]
 
     async def get_model(self, model_id: str) -> ModelConfig | None:
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(
-                'SELECT * FROM model_config WHERE model_id = $1',
-                model_id,
-            )
-            if row is None:
-                return None
-            return _row_to_model(row)
+        stmt = select(ModelConfigTable).where(ModelConfigTable.model_id == model_id)
+        result = await self._session.execute(stmt)
+        row = result.scalar_one_or_none()
+        return _row_to_model(row) if row else None
 
     async def get_active_model(self, provider: str) -> ModelConfig | None:
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(
-                'SELECT * FROM model_config WHERE provider = $1 AND is_active = TRUE',
-                provider,
-            )
-            if row is None:
-                return None
-            return _row_to_model(row)
+        stmt = select(ModelConfigTable).where(
+            ModelConfigTable.provider == provider,
+            ModelConfigTable.is_active.is_(True),
+        )
+        result = await self._session.execute(stmt)
+        row = result.scalar_one_or_none()
+        return _row_to_model(row) if row else None
 
     async def set_active_model(self, *, provider: str, model_id: str) -> None:
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(
-                'SELECT * FROM model_config WHERE model_id = $1 AND provider = $2',
-                model_id,
-                provider,
-            )
-            if row is None:
-                msg = f'模型 {model_id} 不存在'
-                raise ModelNotFoundError(msg)
+        # Check exists
+        check_stmt = select(ModelConfigTable).where(
+            ModelConfigTable.model_id == model_id,
+            ModelConfigTable.provider == provider,
+        )
+        result = await self._session.execute(check_stmt)
+        if result.scalar_one_or_none() is None:
+            msg = f'模型 {model_id} 不存在'
+            raise ModelNotFoundError(msg)
 
-            async with conn.transaction():
-                now = datetime.now(tz=UTC)
-                await conn.execute(
-                    'UPDATE model_config SET is_active = FALSE, updated_at = $1'
-                    ' WHERE provider = $2 AND is_active = TRUE',
-                    now,
-                    provider,
-                )
-                await conn.execute(
-                    'UPDATE model_config SET is_active = TRUE, updated_at = $1 WHERE model_id = $2',
-                    now,
-                    model_id,
-                )
+        now = datetime.now(tz=UTC)
+        # Deactivate current
+        deactivate = (
+            update(ModelConfigTable)
+            .where(ModelConfigTable.provider == provider, ModelConfigTable.is_active.is_(True))
+            .values(is_active=False, updated_at=now)
+        )
+        await self._session.execute(deactivate)
+
+        # Activate new
+        activate = (
+            update(ModelConfigTable)
+            .where(ModelConfigTable.model_id == model_id)
+            .values(is_active=True, updated_at=now)
+        )
+        await self._session.execute(activate)
+        await self._session.flush()
 
     async def create_model(self, model: ModelConfig) -> ModelConfig:
-        async with self._pool.acquire() as conn:
-            try:
-                row = await conn.fetchrow(
-                    """
-                    INSERT INTO model_config (provider, model_id, display_name, is_active, pricing)
-                    VALUES ($1, $2, $3, $4, $5::jsonb)
-                    RETURNING *
-                    """,
-                    model.provider,
-                    model.model_id,
-                    model.display_name,
-                    model.is_active,
-                    json.dumps(model.pricing),
-                )
-            except asyncpg.UniqueViolationError as e:
-                msg = f'模型 {model.model_id} 已存在'
-                raise DuplicateModelError(msg) from e
-            return _row_to_model(row)
+        row = ModelConfigTable(
+            provider=model.provider,
+            model_id=model.model_id,
+            display_name=model.display_name,
+            is_active=model.is_active,
+            pricing=model.pricing,
+        )
+        self._session.add(row)
+        try:
+            await self._session.flush()
+        except IntegrityError as e:
+            await self._session.rollback()
+            msg = f'模型 {model.model_id} 已存在'
+            raise DuplicateModelError(msg) from e
+        return _row_to_model(row)
 
     async def update_model(self, model_id: str, updates: dict[str, Any]) -> ModelConfig:
-        async with self._pool.acquire() as conn:
-            existing = await conn.fetchrow(
-                'SELECT * FROM model_config WHERE model_id = $1',
-                model_id,
-            )
-            if existing is None:
-                msg = f'模型 {model_id} 不存在'
-                raise ModelNotFoundError(msg)
+        stmt = select(ModelConfigTable).where(ModelConfigTable.model_id == model_id)
+        result = await self._session.execute(stmt)
+        row = result.scalar_one_or_none()
+        if row is None:
+            msg = f'模型 {model_id} 不存在'
+            raise ModelNotFoundError(msg)
 
-            set_parts = ['updated_at = $1']
-            params: list[Any] = [datetime.now(tz=UTC)]
-            idx = 2
-
-            if 'display_name' in updates:
-                set_parts.append(f'display_name = ${idx}')
-                params.append(updates['display_name'])
-                idx += 1
-
-            if 'pricing' in updates:
-                set_parts.append(f'pricing = ${idx}::jsonb')
-                params.append(json.dumps(updates['pricing']))
-                idx += 1
-
-            params.append(model_id)
-            set_clause = ', '.join(set_parts)
-            sql = f'UPDATE model_config SET {set_clause} WHERE model_id = ${idx} RETURNING *'
-            row = await conn.fetchrow(sql, *params)
-            return _row_to_model(row)
+        if 'display_name' in updates:
+            row.display_name = updates['display_name']
+        if 'pricing' in updates:
+            row.pricing = updates['pricing']
+        row.updated_at = datetime.now(tz=UTC)
+        await self._session.flush()
+        return _row_to_model(row)
 
     async def delete_model(self, model_id: str) -> None:
-        async with self._pool.acquire() as conn:
-            row = await conn.fetchrow(
-                'SELECT is_active FROM model_config WHERE model_id = $1',
-                model_id,
-            )
-            if row is None:
-                msg = f'模型 {model_id} 不存在'
-                raise ModelNotFoundError(msg)
+        stmt = select(ModelConfigTable).where(ModelConfigTable.model_id == model_id)
+        result = await self._session.execute(stmt)
+        row = result.scalar_one_or_none()
+        if row is None:
+            msg = f'模型 {model_id} 不存在'
+            raise ModelNotFoundError(msg)
+        if row.is_active:
+            msg = f'無法刪除 active 模型 {model_id}'
+            raise ActiveModelDeleteError(msg)
 
-            if row['is_active']:
-                msg = f'無法刪除 active 模型 {model_id}'
-                raise ActiveModelDeleteError(msg)
-
-            await conn.execute(
-                'DELETE FROM model_config WHERE model_id = $1',
-                model_id,
-            )
+        del_stmt = delete(ModelConfigTable).where(ModelConfigTable.model_id == model_id)
+        await self._session.execute(del_stmt)
+        await self._session.flush()

@@ -4,6 +4,20 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+
+def make_mock_session() -> AsyncMock:
+    """建立模擬 AsyncSession 的 mock。"""
+    session = AsyncMock(spec=AsyncSession)
+    session.execute = AsyncMock()
+    session.add = MagicMock()
+    session.flush = AsyncMock()
+    session.commit = AsyncMock()
+    session.rollback = AsyncMock()
+    return session
 
 
 class MockStreamAgent:

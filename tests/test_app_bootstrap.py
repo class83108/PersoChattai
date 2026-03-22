@@ -136,14 +136,13 @@ def check_scheduler_stopped(ctx: dict[str, Any]) -> None:
 
 @then('DB pool 應已關閉')
 def check_pool_closed(ctx: dict[str, Any]) -> None:
-    assert ctx.get('pool_closed', False)
+    assert ctx.get('engine_disposed', False)
 
 
 @then('路徑 "/api/conversation/rtc" 應已註冊在 app routes 中')
 def check_rtc_route(ctx: dict[str, Any]) -> None:
     app = ctx['app']
     paths = [route.path for route in app.routes]
-    # FastRTC mounts under the path, so check for prefix match
     assert any('/api/conversation/rtc' in p for p in paths), f'Routes: {paths}'
 
 
@@ -160,18 +159,18 @@ def _start_app(settings: Settings, ctx: dict[str, Any]) -> None:
 
     app = create_app(settings)
 
-    mock_pool = MagicMock()
+    mock_session_factory = MagicMock()
     mock_model_config_repo = MagicMock()
     mock_model_config_repo.seed_defaults = AsyncMock()
     mock_usage_repo = MagicMock()
     mock_monitor = MagicMock()
     mock_monitor.load_history = AsyncMock()
 
-    pool_closed = False
+    engine_disposed = False
 
-    async def mock_close_pool() -> None:
-        nonlocal pool_closed
-        pool_closed = True
+    async def mock_dispose() -> None:
+        nonlocal engine_disposed
+        engine_disposed = True
 
     mock_assessment_repo = MagicMock()
     mock_vocabulary_repo = MagicMock()
@@ -181,42 +180,40 @@ def _start_app(settings: Settings, ctx: dict[str, Any]) -> None:
     mock_assessment_service._agent = mock_assessment_agent
 
     with (
-        patch('persochattai.app.init_pool', new=AsyncMock()),
-        patch('persochattai.app.get_pool', return_value=mock_pool),
-        patch('persochattai.app.close_pool', new=AsyncMock(side_effect=mock_close_pool)),
-        patch('persochattai.app.ModelConfigRepository', return_value=mock_model_config_repo),
-        patch('persochattai.app.UsageRepository', return_value=mock_usage_repo),
+        patch('persochattai.app.init_engine'),
+        patch('persochattai.app.get_session_factory', return_value=mock_session_factory),
+        patch('persochattai.app.dispose_engine', new=AsyncMock(side_effect=mock_dispose)),
+        patch('persochattai.app.ModelConfigRepositoryWrapper', return_value=mock_model_config_repo),
+        patch('persochattai.app.UsageRepositoryWrapper', return_value=mock_usage_repo),
         patch('persochattai.app.init_usage_monitor', return_value=mock_monitor),
-        patch('persochattai.app.AssessmentRepository', return_value=mock_assessment_repo),
-        patch('persochattai.app.UserVocabularyRepository', return_value=mock_vocabulary_repo),
-        patch('persochattai.app.LevelSnapshotRepository', return_value=mock_snapshot_repo),
+        patch('persochattai.app.AssessmentRepositoryWrapper', return_value=mock_assessment_repo),
+        patch('persochattai.app.VocabularyRepositoryWrapper', return_value=mock_vocabulary_repo),
+        patch('persochattai.app.SnapshotRepositoryWrapper', return_value=mock_snapshot_repo),
         patch('persochattai.app.AssessmentService', return_value=mock_assessment_service),
         patch('persochattai.app.create_assessment_agent', return_value=mock_assessment_agent),
         patch('persochattai.app._create_gemini_client', return_value=MagicMock()),
     ):
-        # Run lifespan startup only, capture state, then shutdown
         snapshot: dict[str, Any] = {}
 
         async def run_lifespan() -> None:
-            nonlocal pool_closed
+            nonlocal engine_disposed
             gen = app.router.lifespan_context(app)
             await gen.__aenter__()
-            # Capture state while lifespan is active
             snapshot['scheduler_running'] = app.state.content_scheduler.is_running()
             snapshot['scheduler_has_job'] = app.state.content_scheduler.has_scrape_job()
             await gen.__aexit__(None, None, None)
-            pool_closed = True
+            engine_disposed = True
 
         _run(run_lifespan())
 
     ctx['app'] = app
-    ctx['pool_closed'] = pool_closed
+    ctx['engine_disposed'] = engine_disposed
     ctx['snapshot'] = snapshot
 
     def cleanup() -> None:
-        nonlocal pool_closed
-        pool_closed = True
-        ctx['pool_closed'] = True
+        nonlocal engine_disposed
+        engine_disposed = True
+        ctx['engine_disposed'] = True
 
     ctx['cleanup'] = cleanup
 
