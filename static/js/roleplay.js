@@ -25,6 +25,55 @@ function setState(newState) {
   }
 }
 
+// --- Source Selection ---
+
+function switchSource(type, tabEl) {
+  document.getElementById('source-type').value = type;
+  document.getElementById('source-ref').value = '';
+
+  // Update tab styling
+  tabEl.parentElement.querySelectorAll('.tab').forEach((t) => t.classList.remove('tab-active'));
+  tabEl.classList.add('tab-active');
+
+  const cardArea = document.getElementById('card-picker-area');
+  const freeArea = document.getElementById('free-topic-area');
+  const selectedCard = document.getElementById('selected-card');
+
+  if (type === 'card') {
+    cardArea.classList.remove('hidden');
+    freeArea.classList.add('hidden');
+    selectedCard.classList.add('hidden');
+  } else {
+    cardArea.classList.add('hidden');
+    freeArea.classList.remove('hidden');
+    selectedCard.classList.add('hidden');
+    document.getElementById('free-topic-input').focus();
+  }
+}
+
+function pickCard(cardId, btnEl) {
+  document.getElementById('source-ref').value = cardId;
+
+  // Highlight selected
+  document.querySelectorAll('#card-picker-area button').forEach((b) => {
+    b.classList.remove('bg-primary/10', 'ring-1', 'ring-primary');
+  });
+  btnEl.classList.add('bg-primary/10', 'ring-1', 'ring-primary');
+
+  // Show selected indicator
+  const title = btnEl.querySelector('.font-medium').textContent;
+  document.getElementById('selected-card-title').textContent = title;
+  document.getElementById('selected-card').classList.remove('hidden');
+}
+
+function clearCardSelection() {
+  document.getElementById('source-ref').value = '';
+  document.getElementById('selected-card').classList.add('hidden');
+  document.querySelectorAll('#card-picker-area button').forEach((b) => {
+    b.classList.remove('bg-primary/10', 'ring-1', 'ring-primary');
+  });
+}
+
 // --- Conversation Lifecycle ---
 
 async function startConversation() {

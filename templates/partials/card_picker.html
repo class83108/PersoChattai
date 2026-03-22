@@ -1,0 +1,20 @@
+{# Card picker for roleplay source selection #}
+{% if cards %}
+<div class="max-h-60 overflow-y-auto space-y-1">
+  {% for card in cards %}
+  <button type="button"
+          class="w-full text-left p-2 rounded-lg hover:bg-base-300 transition-colors flex items-center gap-2"
+          onclick="pickCard('{{ card.id }}', this)">
+    <div class="flex-1 min-w-0">
+      <div class="text-sm font-medium truncate">{{ card.title }}</div>
+      <div class="text-xs text-base-content/50">{{ card.source_type }}{% if card.difficulty_level %} · {{ card.difficulty_level }}{% endif %}</div>
+    </div>
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-base-content/30 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+    </svg>
+  </button>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-sm text-base-content/50 py-4 text-center">沒有可用的素材卡片，先到<a href="/materials" class="link link-primary">素材管理</a>建立卡片</p>
+{% endif %}

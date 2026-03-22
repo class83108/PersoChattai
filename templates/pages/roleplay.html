@@ -38,14 +38,37 @@
           <h2 class="card-title text-lg">開始新對話</h2>
 
           <div class="form-control gap-3 mt-2">
-            <select id="source-type" class="select select-bordered select-sm">
-              <option value="card">從素材卡片開始</option>
-              <option value="free_topic">自由主題</option>
-            </select>
+            <div class="tabs tabs-boxed tabs-sm" role="tablist">
+              <button type="button" role="tab" class="tab tab-active" onclick="switchSource('card', this)">從素材卡片</button>
+              <button type="button" role="tab" class="tab" onclick="switchSource('free_topic', this)">自由主題</button>
+            </div>
 
-            <input id="source-ref" type="text"
-                   placeholder="輸入卡片 ID 或主題描述"
-                   class="input input-bordered input-sm" />
+            <input id="source-type" type="hidden" value="card" />
+            <input id="source-ref" type="hidden" value="" />
+
+            {# Card picker (default visible) #}
+            <div id="card-picker-area"
+                 hx-get="/roleplay/partials/card-picker"
+                 hx-trigger="load"
+                 hx-swap="innerHTML">
+              <div class="flex justify-center py-4">
+                <span class="loading loading-dots loading-sm"></span>
+              </div>
+            </div>
+
+            {# Selected card indicator #}
+            <div id="selected-card" class="alert alert-info text-sm hidden">
+              <span id="selected-card-title"></span>
+              <button type="button" class="btn btn-ghost btn-xs" onclick="clearCardSelection()">✕</button>
+            </div>
+
+            {# Free topic input (hidden by default) #}
+            <div id="free-topic-area" class="hidden">
+              <input id="free-topic-input" type="text"
+                     placeholder="描述你想練習的主題..."
+                     class="input input-bordered input-sm w-full"
+                     oninput="document.getElementById('source-ref').value = this.value" />
+            </div>
 
             <button id="btn-start" class="btn btn-primary btn-sm" onclick="startConversation()">
               🎙️ 開始對話
@@ -157,5 +180,5 @@
   </div>
 </div>
 
-<script src="/static/js/roleplay.js"></script>
+<script src="/static/js/roleplay.js?v=2"></script>
 {% endblock %}
