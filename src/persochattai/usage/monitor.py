@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -28,6 +29,16 @@ class ExtendedUsageMonitor(UsageMonitor):
     repository: UsageRepositoryProtocol | None = field(default=None, repr=False)
     model_config_repo: ModelConfigRepositoryProtocol | None = field(default=None, repr=False)
     _pricing_cache: dict[str, dict[str, Any]] = field(default_factory=dict, repr=False)
+
+    def record(self, usage: Any) -> Any:
+        result = super().record(usage)
+        if result is not None and self.repository is not None:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.repository.save_token_record(result, model=self.model))
+            except RuntimeError:
+                pass
+        return result
 
     async def record_audio(
         self,
@@ -59,9 +70,7 @@ class ExtendedUsageMonitor(UsageMonitor):
         return rec
 
     async def record_and_persist(self, usage: Any) -> None:
-        result = self.record(usage)
-        if result is not None and self.repository is not None:
-            await self.repository.save_token_record(result, model=self.model)
+        self.record(usage)
 
     def _gemini_audio_cost(self) -> float:
         total = 0.0
