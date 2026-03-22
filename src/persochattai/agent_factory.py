@@ -17,7 +17,6 @@ from persochattai.config import Settings
 from persochattai.content.schemas import CardRepositoryProtocol
 from persochattai.tools import (
     build_assessment_tool_registry,
-    build_content_tool_registry,
     build_conversation_tool_registry,
 )
 from persochattai.usage.monitor import ExtendedUsageMonitor
@@ -154,7 +153,10 @@ def create_content_agent(
 ) -> Agent:
     return _build_agent(
         settings=settings,
-        system_prompt='你是英文學習內容摘要助手。收到任何輸入後，直接回傳結構化 JSON 學習卡片，不要對話或詢問。',
+        system_prompt=(
+            '你是英文學習內容摘要助手。'
+            '收到任何輸入後，直接回傳結構化 JSON 學習卡片，不要對話或詢問。'
+        ),
         skills=[CONTENT_SUMMARIZER],
     )
 

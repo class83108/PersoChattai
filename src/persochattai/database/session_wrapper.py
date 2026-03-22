@@ -13,9 +13,9 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from persochattai.assessment.repository import AssessmentRepository
-from persochattai.content.repository import CardRepository
 from persochattai.assessment.snapshot_repository import LevelSnapshotRepository
 from persochattai.assessment.vocabulary_repository import UserVocabularyRepository
+from persochattai.content.repository import CardRepository
 from persochattai.conversation.repository import ConversationRepository
 from persochattai.usage.model_config_repository import ModelConfigRepository
 from persochattai.usage.repository import UsageRepository

@@ -25,6 +25,54 @@ function setState(newState) {
   }
 }
 
+// --- Source Selection ---
+
+function switchSource(type, tabEl) {
+  document.getElementById('source-type').value = type;
+  document.getElementById('source-ref').value = '';
+
+  // Update tab styling
+  tabEl.parentElement.querySelectorAll('.tab').forEach((t) => t.classList.remove('tab-active'));
+  tabEl.classList.add('tab-active');
+
+  const cardArea = document.getElementById('card-picker-area');
+  const freeArea = document.getElementById('free-topic-area');
+  const selectedCard = document.getElementById('selected-card');
+
+  if (type === 'card') {
+    cardArea.classList.remove('hidden');
+    freeArea.classList.add('hidden');
+    selectedCard.classList.add('hidden');
+  } else {
+    cardArea.classList.add('hidden');
+    freeArea.classList.remove('hidden');
+    selectedCard.classList.add('hidden');
+    document.getElementById('free-topic-input').focus();
+  }
+}
+
+function pickCard(btnEl) {
+  const cardId = btnEl.dataset.cardId;
+  const title = btnEl.dataset.cardTitle;
+  const meta = btnEl.dataset.cardMeta;
+  const summary = btnEl.dataset.cardSummary;
+
+  document.getElementById('source-ref').value = cardId;
+
+  // Hide picker list, show selected card
+  document.getElementById('card-picker-area').classList.add('hidden');
+  document.getElementById('selected-card-title').textContent = title;
+  document.getElementById('selected-card-meta').textContent = meta;
+  document.getElementById('selected-card-summary').textContent = summary;
+  document.getElementById('selected-card').classList.remove('hidden');
+}
+
+function clearCardSelection() {
+  document.getElementById('source-ref').value = '';
+  document.getElementById('selected-card').classList.add('hidden');
+  document.getElementById('card-picker-area').classList.remove('hidden');
+}
+
 // --- Conversation Lifecycle ---
 
 async function startConversation() {
