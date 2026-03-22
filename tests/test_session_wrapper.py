@@ -19,6 +19,7 @@ from persochattai.database.session_wrapper import (
     ModelConfigRepositoryWrapper,
     SnapshotRepositoryWrapper,
     UsageRepositoryWrapper,
+    UserRepositoryWrapper,
     VocabularyRepositoryWrapper,
 )
 
@@ -338,4 +339,54 @@ class TestModelConfigRepositoryWrapper:
         result = await wrapper.get_active_model('gemini')
 
         assert result is None
+        session.commit.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# UserRepositoryWrapper
+# ---------------------------------------------------------------------------
+
+
+class TestUserRepositoryWrapper:
+    @pytest.mark.asyncio
+    @patch('persochattai.database.session_wrapper.UserRepository')
+    async def test_create_commits(self, mock_repo_cls: MagicMock) -> None:
+        factory, session = _make_factory_and_session()
+        wrapper = UserRepositoryWrapper(factory)
+        mock_repo = AsyncMock()
+        mock_repo.create.return_value = {'id': 'u1', 'display_name': '小明'}
+        mock_repo_cls.return_value = mock_repo
+
+        result = await wrapper.create('小明')
+
+        mock_repo.create.assert_awaited_once_with('小明')
+        session.commit.assert_awaited_once()
+        assert result == {'id': 'u1', 'display_name': '小明'}
+
+    @pytest.mark.asyncio
+    @patch('persochattai.database.session_wrapper.UserRepository')
+    async def test_get_by_id_no_commit(self, mock_repo_cls: MagicMock) -> None:
+        factory, session = _make_factory_and_session()
+        wrapper = UserRepositoryWrapper(factory)
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = {'id': 'u1', 'display_name': '小明'}
+        mock_repo_cls.return_value = mock_repo
+
+        result = await wrapper.get_by_id('u1')
+
+        assert result == {'id': 'u1', 'display_name': '小明'}
+        session.commit.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @patch('persochattai.database.session_wrapper.UserRepository')
+    async def test_get_by_display_name_no_commit(self, mock_repo_cls: MagicMock) -> None:
+        factory, session = _make_factory_and_session()
+        wrapper = UserRepositoryWrapper(factory)
+        mock_repo = AsyncMock()
+        mock_repo.get_by_display_name.return_value = {'id': 'u1', 'display_name': '小明'}
+        mock_repo_cls.return_value = mock_repo
+
+        result = await wrapper.get_by_display_name('小明')
+
+        assert result == {'id': 'u1', 'display_name': '小明'}
         session.commit.assert_not_awaited()
