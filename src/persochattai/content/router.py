@@ -84,5 +84,8 @@ async def upload_pdf(request: Request, file: UploadFile) -> dict[str, Any]:
 @router.post('/free-topic')
 async def free_topic(request: Request, body: FreeTopicRequest) -> dict[str, Any]:
     service: ContentService = request.app.state.content_service
-    cards = await service.summarize_free_topic(body.topic)
+    try:
+        cards = await service.summarize_free_topic(body.topic)
+    except ContentServiceError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
     return {'card': cards[0] if len(cards) == 1 else cards}

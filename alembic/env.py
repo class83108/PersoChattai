@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from logging.config import fileConfig
 
+from dotenv import load_dotenv
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
@@ -13,7 +15,15 @@ import persochattai.database.tables  # noqa: F401
 from alembic import context
 from persochattai.database.base import Base
 
+load_dotenv()
+
 config = context.config
+
+# 從 .env 的 DB_URL 覆寫 alembic.ini 的 sqlalchemy.url
+db_url = os.getenv('DB_URL')
+if db_url:
+    async_url = db_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
+    config.set_main_option('sqlalchemy.url', async_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

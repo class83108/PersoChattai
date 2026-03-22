@@ -192,7 +192,8 @@ async def upload_pdf_partial(request: Request, file: UploadFile) -> Any:
 
 @router.post('/materials/free-topic', response_class=HTMLResponse)
 async def free_topic_partial(request: Request) -> Any:
-    body = await request.json()
+    form = await request.form()
+    body = dict(form)
     cards: list[dict[str, Any]] = []
     error = ''
 

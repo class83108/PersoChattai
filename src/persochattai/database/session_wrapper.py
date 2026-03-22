@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from persochattai.assessment.repository import AssessmentRepository
+from persochattai.content.repository import CardRepository
 from persochattai.assessment.snapshot_repository import LevelSnapshotRepository
 from persochattai.assessment.vocabulary_repository import UserVocabularyRepository
 from persochattai.conversation.repository import ConversationRepository
@@ -120,6 +121,45 @@ class SnapshotRepositoryWrapper(_SessionMethodWrapper):
         async with self._factory() as session:
             repo = LevelSnapshotRepository(session)
             return await repo.get_latest(user_id)
+
+
+class CardRepositoryWrapper(_SessionMethodWrapper):
+    async def create(self, card_data: dict[str, Any]) -> dict[str, Any]:
+        async with self._factory() as session:
+            repo = CardRepository(session)
+            result = await repo.create(card_data)
+            await session.commit()
+            return result
+
+    async def get_by_id(self, card_id: str) -> dict[str, Any] | None:
+        async with self._factory() as session:
+            repo = CardRepository(session)
+            return await repo.get_by_id(card_id)
+
+    async def list_cards(
+        self,
+        source_type: str | None = None,
+        difficulty: str | None = None,
+        tag: str | None = None,
+        keyword: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        async with self._factory() as session:
+            repo = CardRepository(session)
+            return await repo.list_cards(
+                source_type=source_type,
+                difficulty=difficulty,
+                tag=tag,
+                keyword=keyword,
+                limit=limit,
+                offset=offset,
+            )
+
+    async def exists_by_url(self, source_url: str) -> bool:
+        async with self._factory() as session:
+            repo = CardRepository(session)
+            return await repo.exists_by_url(source_url)
 
 
 class UsageRepositoryWrapper(_SessionMethodWrapper):

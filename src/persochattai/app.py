@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from persochattai.agent_factory import (
     create_assessment_agent,
+    create_content_agent,
     get_usage_monitor,
     init_usage_monitor,
 )
@@ -25,8 +26,10 @@ from persochattai.conversation.manager import ConversationManager
 from persochattai.conversation.router import router as conversation_router
 from persochattai.conversation.stream import mount_conversation_stream
 from persochattai.database.engine import dispose_engine, get_session_factory, init_engine
+from persochattai.content.service import ContentService
 from persochattai.database.session_wrapper import (
     AssessmentRepositoryWrapper,
+    CardRepositoryWrapper,
     ConversationRepositoryWrapper,
     ModelConfigRepositoryWrapper,
     SnapshotRepositoryWrapper,
@@ -71,7 +74,12 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     assessment_service._agent = create_assessment_agent(settings, assessment_service)  # type: ignore[assignment]
 
-    # 4. Conversation manager
+    # 4. Content service
+    card_repo = CardRepositoryWrapper(factory)
+    content_agent = create_content_agent(settings, card_repo)
+    app.state.content_service = ContentService(repository=card_repo, agent=content_agent)
+
+    # 5. Conversation manager
     conv_repo = ConversationRepositoryWrapper(factory)
 
     async def _scenario_designer(source_type: str, source_ref: str) -> str:
@@ -85,10 +93,10 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     app.state.conversation_manager = conversation_manager
 
-    # 5. FastRTC WebRTC stream
+    # 6. FastRTC WebRTC stream
     mount_conversation_stream(app, model=settings.gemini_model)
 
-    # 6. Content scheduler
+    # 7. Content scheduler
     scheduler = ContentScheduler()
     scheduler.start()
     app.state.content_scheduler = scheduler
