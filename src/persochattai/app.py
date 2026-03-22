@@ -34,10 +34,12 @@ from persochattai.database.session_wrapper import (
     ModelConfigRepositoryWrapper,
     SnapshotRepositoryWrapper,
     UsageRepositoryWrapper,
+    UserRepositoryWrapper,
     VocabularyRepositoryWrapper,
 )
 from persochattai.frontend.router import router as frontend_router
 from persochattai.usage.router import router as usage_router
+from persochattai.user.router import router as user_router
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +64,11 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     await monitor.load_history()
 
-    # 3. Assessment service
+    # 3. User repository
+    user_repo = UserRepositoryWrapper(factory)
+    app.state.user_repository = user_repo
+
+    # 4. Assessment service
     assessment_repo = AssessmentRepositoryWrapper(factory)
     vocabulary_repo = VocabularyRepositoryWrapper(factory)
     snapshot_repo = SnapshotRepositoryWrapper(factory)
@@ -78,7 +84,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     card_repo = CardRepositoryWrapper(factory)
     app.state.card_repository = card_repo
     content_agent = create_content_agent(settings, card_repo)
-    app.state.content_service = ContentService(repository=card_repo, agent=content_agent)
+    app.state.content_service = ContentService(repository=card_repo, agent=content_agent)  # type: ignore[arg-type]
 
     # 5. Conversation manager
     conv_repo = ConversationRepositoryWrapper(factory)
@@ -145,6 +151,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(conversation_router)
     app.include_router(assessment_router)
     app.include_router(usage_router)
+    app.include_router(user_router)
 
     @app.get('/health')
     async def health() -> dict[str, str]:

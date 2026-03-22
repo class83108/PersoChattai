@@ -1,0 +1,22 @@
+{# Nickname modal — blocks interaction until user identifies #}
+<dialog id="nickname-modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box">
+    <h3 class="text-lg font-bold">歡迎使用 PersoChattai</h3>
+    <p class="text-sm text-base-content/60 mt-1">輸入你的暱稱開始練習英文</p>
+
+    <div class="form-control mt-4">
+      <input id="nickname-input" type="text"
+             placeholder="暱稱（1-20 字）"
+             maxlength="20"
+             class="input input-bordered w-full"
+             onkeydown="if(event.key==='Enter') submitNickname()" />
+      <div id="nickname-error" class="label hidden">
+        <span class="label-text-alt text-error" id="nickname-error-msg"></span>
+      </div>
+    </div>
+
+    <div class="modal-action">
+      <button class="btn btn-primary" onclick="submitNickname()">開始</button>
+    </div>
+  </div>
+</dialog>
