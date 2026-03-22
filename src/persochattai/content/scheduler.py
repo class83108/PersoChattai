@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from typing import TYPE_CHECKING
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+if TYPE_CHECKING:
+    from persochattai.content.crawl_service import CrawlService
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +21,10 @@ class ContentScheduler:
         self._scheduler = AsyncIOScheduler()
         self._interval_hours = interval_hours
         self._running = False
+        self._crawl_service: CrawlService | None = None
+
+    def set_crawl_service(self, crawl_service: CrawlService) -> None:
+        self._crawl_service = crawl_service
 
     def start(self) -> None:
         self._scheduler.add_job(
@@ -45,3 +53,14 @@ class ContentScheduler:
 
     async def _scrape_job(self) -> None:
         logger.info('開始執行爬蟲 job')
+        if self._crawl_service is None:
+            logger.warning('CrawlService 尚未設定，跳過排程')
+            return
+        result = await self._crawl_service.run_crawl_if_free()
+        if result:
+            logger.info(
+                '爬蟲完成：新增 %d / 跳過 %d / 失敗 %d',
+                result.total_new,
+                result.total_skipped,
+                result.total_failed,
+            )

@@ -83,6 +83,13 @@ class CardRepository:
         result = await self._session.execute(stmt)
         return bool(result.scalar())
 
+    async def filter_existing_urls(self, urls: list[str]) -> set[str]:
+        if not urls:
+            return set()
+        stmt = select(CardTable.source_url).where(CardTable.source_url.in_(urls))
+        result = await self._session.execute(stmt)
+        return {row[0] for row in result.all()}
+
 
 def _row_to_dict(row: CardTable) -> dict[str, Any]:
     return {
