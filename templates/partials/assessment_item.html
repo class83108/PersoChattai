@@ -4,9 +4,9 @@
 
   {# Collapsed: date + CEFR + brief scores #}
   <div class="collapse-title flex items-center gap-3">
-    <span class="text-sm text-base-content/50 w-24 flex-shrink-0">{{ item.created_at | default('—') }}</span>
+    <span class="text-xs md:text-sm text-base-content/50 w-20 md:w-24 flex-shrink-0">{{ item.created_at | default('—') }}</span>
     <span class="badge badge-primary badge-sm">{{ item.cefr_level | default('—') }}</span>
-    <span class="text-xs text-base-content/40 flex-1 truncate">
+    <span class="text-xs text-base-content/40 flex-1 truncate hidden sm:inline">
       L:{{ item.lexical_score | default(0) | round(1) }}
       F:{{ item.fluency_score | default(0) | round(1) }}
       G:{{ item.grammar_score | default(0) | round(1) }}
@@ -27,31 +27,31 @@
     {% if item.nlp_metrics %}
     <div>
       <h4 class="font-semibold text-base-content/70 mb-1">量化指標</h4>
-      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 md:gap-3">
         {% set metrics = item.nlp_metrics %}
-        <div class="stat bg-base-300 rounded-lg p-2">
-          <div class="stat-title text-xs">MTLD</div>
-          <div class="stat-value text-lg">{{ metrics.mtld | default('—') | round(1) if metrics.mtld else '—' }}</div>
+        <div class="stat bg-base-300 rounded-lg p-2 md:p-3">
+          <div class="stat-title text-xs md:text-sm">MTLD</div>
+          <div class="stat-value text-base md:text-lg">{{ metrics.mtld | default('—') | round(1) if metrics.mtld else '—' }}</div>
         </div>
-        <div class="stat bg-base-300 rounded-lg p-2">
-          <div class="stat-title text-xs">平均句長</div>
-          <div class="stat-value text-lg">{{ metrics.avg_sentence_length | default(0) | round(1) }}</div>
+        <div class="stat bg-base-300 rounded-lg p-2 md:p-3">
+          <div class="stat-title text-xs md:text-sm">平均句長</div>
+          <div class="stat-value text-base md:text-lg">{{ metrics.avg_sentence_length | default(0) | round(1) }}</div>
         </div>
-        <div class="stat bg-base-300 rounded-lg p-2">
-          <div class="stat-title text-xs">時態多樣性</div>
-          <div class="stat-value text-lg">{{ metrics.tense_diversity | default(0) }}</div>
+        <div class="stat bg-base-300 rounded-lg p-2 md:p-3">
+          <div class="stat-title text-xs md:text-sm">時態多樣性</div>
+          <div class="stat-value text-base md:text-lg">{{ metrics.tense_diversity | default(0) }}</div>
         </div>
-        <div class="stat bg-base-300 rounded-lg p-2">
-          <div class="stat-title text-xs">自我修正</div>
-          <div class="stat-value text-lg">{{ metrics.self_correction_count | default(0) }}</div>
+        <div class="stat bg-base-300 rounded-lg p-2 md:p-3">
+          <div class="stat-title text-xs md:text-sm">自我修正</div>
+          <div class="stat-value text-base md:text-lg">{{ metrics.self_correction_count | default(0) }}</div>
         </div>
-        <div class="stat bg-base-300 rounded-lg p-2">
-          <div class="stat-title text-xs">連接詞比例</div>
-          <div class="stat-value text-lg">{{ '%.0f%%' | format((metrics.conjunction_ratio | default(0)) * 100) }}</div>
+        <div class="stat bg-base-300 rounded-lg p-2 md:p-3">
+          <div class="stat-title text-xs md:text-sm">連接詞比例</div>
+          <div class="stat-value text-base md:text-lg">{{ '%.0f%%' | format((metrics.conjunction_ratio | default(0)) * 100) }}</div>
         </div>
-        <div class="stat bg-base-300 rounded-lg p-2">
-          <div class="stat-title text-xs">語法錯誤</div>
-          <div class="stat-value text-lg">{{ metrics.grammar_error_count | default(0) }}</div>
+        <div class="stat bg-base-300 rounded-lg p-2 md:p-3">
+          <div class="stat-title text-xs md:text-sm">語法錯誤</div>
+          <div class="stat-value text-base md:text-lg">{{ metrics.grammar_error_count | default(0) }}</div>
         </div>
       </div>
     </div>

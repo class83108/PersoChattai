@@ -19,11 +19,11 @@
 {% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto">
+<div class="max-w-5xl lg:max-w-6xl mx-auto">
 
-  <div class="mb-6">
-    <h1 class="text-3xl font-bold mb-1">Role Play</h1>
-    <p class="text-base-content/50 text-sm">即時語音對話練習，AI 角色扮演</p>
+  <div class="mb-6 md:mb-8">
+    <h1 class="text-2xl md:text-3xl lg:text-4xl font-bold mb-1">Role Play</h1>
+    <p class="text-base-content/50 text-sm md:text-base">即時語音對話練習，AI 角色扮演</p>
   </div>
 
   {# ── Desktop: two columns / Mobile: tabs ── #}
@@ -35,7 +35,7 @@
       {# State: idle — source selection #}
       <div id="state-idle" class="card bg-base-200">
         <div class="card-body">
-          <h2 class="card-title text-lg">開始新對話</h2>
+          <h2 class="card-title text-lg md:text-xl">開始新對話</h2>
 
           <div class="form-control gap-3 mt-2">
             <div class="tabs tabs-boxed tabs-sm" role="tablist">
@@ -78,7 +78,7 @@
                      oninput="document.getElementById('source-ref').value = this.value" />
             </div>
 
-            <button id="btn-start" class="btn btn-primary btn-sm" onclick="startConversation()">
+            <button id="btn-start" class="btn btn-primary btn-sm md:btn-md" onclick="startConversation()">
               🎙️ 開始對話
             </button>
           </div>
@@ -120,15 +120,15 @@
           </div>
 
           {# Timer #}
-          <div id="timer" class="text-3xl font-mono mt-4 text-base-content/80">00:00</div>
+          <div id="timer" class="text-2xl md:text-3xl font-mono mt-4 text-base-content/80">00:00</div>
           <p class="text-sm text-base-content/50 mt-1">對話進行中</p>
 
           {# Controls #}
           <div class="flex gap-3 mt-6">
-            <button id="btn-end" class="btn btn-error btn-sm" onclick="endConversation()">
+            <button id="btn-end" class="btn btn-error btn-sm md:btn-md" onclick="endConversation()">
               結束對話
             </button>
-            <button id="btn-cancel" class="btn btn-ghost btn-sm" onclick="cancelConversation()">
+            <button id="btn-cancel" class="btn btn-ghost btn-sm md:btn-md" onclick="cancelConversation()">
               取消
             </button>
           </div>
@@ -150,8 +150,8 @@
           <p class="text-lg font-semibold">對話完成！</p>
           <p class="text-base-content/50 text-sm mt-1">評估結果已記錄，前往能力報告查看</p>
           <div class="flex gap-3 mt-6">
-            <a href="/report" class="btn btn-primary btn-sm">查看報告</a>
-            <button class="btn btn-ghost btn-sm" onclick="resetToIdle()">開始新對話</button>
+            <a href="/report" class="btn btn-primary btn-sm md:btn-md">查看報告</a>
+            <button class="btn btn-ghost btn-sm md:btn-md" onclick="resetToIdle()">開始新對話</button>
           </div>
         </div>
       </div>
@@ -163,8 +163,8 @@
           <p class="text-lg font-semibold">連線失敗</p>
           <p id="fail-msg" class="text-base-content/50 text-sm mt-1">請檢查網路連線後重試</p>
           <div class="flex gap-3 mt-6">
-            <button class="btn btn-primary btn-sm" onclick="retryConversation()">重試</button>
-            <button class="btn btn-ghost btn-sm" onclick="resetToIdle()">返回</button>
+            <button class="btn btn-primary btn-sm md:btn-md" onclick="retryConversation()">重試</button>
+            <button class="btn btn-ghost btn-sm md:btn-md" onclick="resetToIdle()">返回</button>
           </div>
         </div>
       </div>
@@ -172,15 +172,21 @@
     </div>
 
     {# ── Right: Conversation History ── #}
-    <div class="lg:w-80">
-      <h2 class="text-lg font-bold mb-3">對話歷史</h2>
-      <div id="conversation-history"
-           hx-get="/roleplay/partials/history"
-           hx-trigger="load"
-           hx-swap="innerHTML"
-           hx-vals="js:{user_id: getUserId()}">
-        <div class="flex justify-center py-8">
-          <span class="loading loading-dots loading-md"></span>
+    <div class="w-full lg:w-80 lg:flex-shrink-0">
+      {# Mobile: collapsible / Desktop: always visible #}
+      <div class="collapse collapse-arrow bg-base-200 rounded-box lg:collapse-open lg:bg-transparent">
+        <input type="checkbox" class="lg:hidden" />
+        <h2 class="collapse-title text-lg md:text-xl font-bold lg:px-0 lg:min-h-0 lg:pb-3">對話歷史</h2>
+        <div class="collapse-content lg:p-0">
+          <div id="conversation-history"
+               hx-get="/roleplay/partials/history"
+               hx-trigger="load"
+               hx-swap="innerHTML"
+               hx-vals="js:{user_id: getUserId()}">
+            <div class="flex justify-center py-8">
+              <span class="loading loading-dots loading-md"></span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
