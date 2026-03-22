@@ -99,8 +99,4 @@ branch = true
 exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "if __name__ == .__main__.:"]
 omit = [
     "src/persochattai/models.py",
-    "src/persochattai/database/*.py",
-    "src/persochattai/**/repository.py",
-    "src/persochattai/assessment/vocabulary_repository.py",
-    "src/persochattai/assessment/snapshot_repository.py",
 ]
